@@ -1,0 +1,73 @@
+/* AddMedia site pages — same "Velvet" tokens as the panel */
+@font-face { font-family: "IBM Plex Sans Hebrew"; font-weight: 400; font-display: swap; src: url(/panel/assets/ibm-plex-sans-hebrew-hebrew-400-normal.woff2) format("woff2"); unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "IBM Plex Sans Hebrew"; font-weight: 600; font-display: swap; src: url(/panel/assets/ibm-plex-sans-hebrew-hebrew-600-normal.woff2) format("woff2"); unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: "IBM Plex Sans Hebrew"; font-weight: 400; font-display: swap; src: url(/panel/assets/ibm-plex-sans-hebrew-latin-400-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "IBM Plex Sans Hebrew"; font-weight: 600; font-display: swap; src: url(/panel/assets/ibm-plex-sans-hebrew-latin-600-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Secular One"; font-weight: 400; font-display: swap; src: url(/panel/assets/secular-one-hebrew-400-normal.woff2) format("woff2"); unicode-range: U+0590-05FF, U+20AA, U+FB1D-FB4F; }
+@font-face { font-family: "Secular One"; font-weight: 400; font-display: swap; src: url(/panel/assets/secular-one-latin-400-normal.woff2) format("woff2"); unicode-range: U+0000-00FF; }
+
+:root {
+  color-scheme: light;
+  --panel: #f4f3f6; --surface: #fff; --sunken: #eae8ee;
+  --t1: #18151d; --t2: #55505e; --t3: #686272;
+  --border: #e3e0e8; --border-strong: #8a8493;
+  --accent: #a3195b; --accent-hover: #8a1550; --on-accent: #fff; --accent-tint: #f7e6ee;
+  --live: #0e9155; --sponsor: #7a5710; --sponsor-tint: #f6eedc; --danger: #b4361a;
+  --shadow: 0 1px 2px rgb(24 16 32 / .06), 0 1px 1px rgb(24 16 32 / .04);
+  --shadow-3: 0 16px 40px -8px rgb(24 16 32 / .22), 0 4px 12px rgb(24 16 32 / .08);
+  --ui: "IBM Plex Sans Hebrew", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  --display: "Secular One", "IBM Plex Sans Hebrew", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --panel: #16131a; --surface: #1f1b24; --sunken: #100e13;
+    --t1: #f3f0f6; --t2: #b8b1c1; --t3: #948c9e;
+    --border: #302a37; --border-strong: #7a7284;
+    --accent: #f06aa3; --accent-hover: #f47bae; --on-accent: #24081a; --accent-tint: #3b1a2c;
+    --live: #3fd48a; --sponsor: #ddb867; --sponsor-tint: #2e2616; --danger: #ff8a5c;
+    --shadow: 0 1px 2px rgb(0 0 0 / .4); --shadow-3: 0 20px 48px -8px rgb(0 0 0 / .6);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--panel); color: var(--t1); font-family: var(--ui); font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.top-in { max-width: 1040px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+.logo { display: flex; align-items: center; gap: 10px; color: var(--t1); font-family: var(--display); font-size: 20px; }
+.logo img { width: 32px; height: 32px; border-radius: 9px; }
+.logo:hover { text-decoration: none; }
+.nav { margin-inline-start: auto; display: flex; gap: 18px; font-size: 14px; }
+.nav a { color: var(--t2); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+.wide { max-width: 1040px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: 40px; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.01em; }
+h2 { font-family: var(--display); font-weight: 400; font-size: 24px; line-height: 1.3; margin: 36px 0 8px; }
+h3 { font-size: 17px; margin: 22px 0 4px; }
+p, li { color: var(--t2); }
+.lead { font-size: 19px; color: var(--t2); max-width: 46ch; }
+.meta { font-size: 13px; color: var(--t3); margin-bottom: 28px; }
+.note { padding: 14px 16px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); font-size: 14px; color: var(--t2); margin: 20px 0; }
+.note.draft { background: var(--sponsor-tint); color: var(--sponsor); box-shadow: none; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 22px; border-radius: 12px; font-weight: 600; font-size: 15px; border: 0; cursor: pointer; font-family: inherit; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
+.btn-secondary { background: var(--surface); color: var(--t1); border: 1px solid var(--border-strong); }
+.btn-secondary:hover { background: var(--sunken); text-decoration: none; }
+.card { background: var(--surface); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 28px; }
+@media (max-width: 760px) { .grid3 { grid-template-columns: 1fr; } h1 { font-size: 32px; } .nav { display: none; } }
+.card h3 { margin-top: 0; font-family: var(--display); font-weight: 400; font-size: 20px; }
+.card p { margin: 6px 0 0; font-size: 15px; }
+label { display: block; font-size: 13px; font-weight: 600; color: var(--t2); margin: 14px 0 6px; }
+input, select, textarea { width: 100%; font: inherit; font-size: 16px; color: var(--t1); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 10px 14px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+textarea { min-height: 140px; resize: vertical; }
+.ok { padding: 14px 16px; border-radius: 12px; background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+.err { color: var(--danger); font-size: 14px; margin-top: 10px; }
+code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; direction: ltr; unicode-bidi: isolate; }
+pre { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; overflow-x: auto; text-align: left; }
+.foot { border-top: 1px solid var(--border); }
+.foot-in { max-width: 1040px; margin: 0 auto; padding: 24px 20px; display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--t3); }
+.foot-in a { color: var(--t2); }

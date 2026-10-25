@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>ניהול — AddMedia</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<style>
+  .wrap { max-width: 1100px; padding-top: 24px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 18px; }
+  .stat { background: var(--surface); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-family: var(--display); font-weight: 400; font-size: 28px; color: var(--t1); }
+  .stat span { font-size: 13px; color: var(--t3); }
+  .stat.hot b { color: var(--danger); }
+  .tabs { display: flex; gap: 4px; padding: 4px; background: var(--sunken); border-radius: 12px; overflow-x: auto; }
+  .tabs button { border: 0; background: none; font: inherit; font-size: 14px; color: var(--t2); padding: 8px 14px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+  .tabs button.on { background: var(--surface); color: var(--t1); font-weight: 600; box-shadow: var(--shadow); }
+  .list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .item { background: var(--surface); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+  .item.p2 { box-shadow: 0 0 0 2px var(--danger); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row input, .row select { width: auto; flex: 1; min-width: 140px; }
+  .tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--sunken); color: var(--t2); }
+  .tag.red { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+  .body { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: var(--panel); white-space: pre-wrap; unicode-bidi: plaintext; text-align: start; color: var(--t1); }
+  .small { font-size: 13px; color: var(--t3); }
+  .btn { height: 38px; padding: 0 14px; font-size: 14px; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  th, td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--t3); font-weight: 600; font-size: 12px; }
+  .media { max-width: 220px; border-radius: 10px; margin-top: 6px; }
+  #login { max-width: 420px; margin: 60px auto; }
+  @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in"><a class="logo" href="/"><img src="/favicon.svg" alt="">AddMedia · ניהול</a><nav class="nav"><a href="#" id="logout">יציאה</a></nav></div></header>
+<main class="wrap">
+  <form id="login" class="card" hidden>
+    <h2 style="margin-top:0">כניסה לניהול</h2>
+    <label for="tok">טוקן ניהול (ADMIN_TOKEN)</label>
+    <input id="tok" type="password" dir="ltr" required autocomplete="current-password">
+    <div style="margin-top:14px"><button class="btn btn-primary">כניסה</button></div>
+    <div id="lerr" class="err"></div>
+  </form>
+  <div id="app" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const when = (t) => (t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "");
+const REASON = { spam: "ספאם", harassment: "הטרדה", hate: "שנאה", violence: "אלימות", sexual: "מיני", intimate: "אינטימי ללא הסכמה", minor: "קטינים", privacy: "פרטיות", copyright: "זכויות יוצרים", other: "אחר" };
+const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית" };
+let token = sessionStorage.getItem("am_admin") || "";
+async function api(path, opts = {}) {
+  const r = await fetch("/v1/admin/" + path, { method: opts.method || "GET", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { sessionStorage.removeItem("am_admin"); showLogin("הטוקן שגוי."); throw new Error("401"); }
+  if (!r.ok) throw new Error(j.error?.message || "שגיאה");
+  return j;
+}
+function showLogin(err = "") { $("#login").hidden = false; $("#app").hidden = true; $("#lerr").textContent = err; }
+$("#login").addEventListener("submit", async (e) => { e.preventDefault(); token = $("#tok").value.trim(); sessionStorage.setItem("am_admin", token); start(); });
+$("#logout").addEventListener("click", (e) => { e.preventDefault(); sessionStorage.removeItem("am_admin"); token = ""; showLogin(); });
+
+const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"]];
+let cur = "reports";
+async function start() {
+  try { const s = await api("stats"); renderStats(s); } catch { return; }
+  $("#login").hidden = true; $("#app").hidden = false;
+  $("#tabs").innerHTML = TABS.map(([id, l]) => `<button data-t="${id}" class="${id === cur ? "on" : ""}">${l}</button>`).join("");
+  $("#tabs").onclick = (e) => { const t = e.target.dataset.t; if (t) { cur = t; start(); } };
+  render();
+}
+function renderStats(s) {
+  $("#stats").innerHTML = `<div class="stat ${s.urgentReports ? "hot" : ""}"><b>${s.urgentReports}</b><span>דיווחים דחופים (48 שעות)</span></div><div class="stat"><b>${s.openReports}</b><span>דיווחים פתוחים</span></div><div class="stat"><b>${s.users}</b><span>משתמשים</span></div><div class="stat"><b>${s.activeAds}</b><span>מודעות פעילות</span></div>`;
+}
+async function render() {
+  const v = $("#view");
+  v.innerHTML = '<p class="small">טוען…</p>';
+  try { v.innerHTML = await VIEWS[cur](); BIND[cur]?.(v); } catch (e) { if (e.message !== "401") v.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+const VIEWS = {
+  async reports(status = "open") {
+    const { reports } = await api("reports?status=" + status);
+    if (!reports.length) return '<p class="small" style="margin-top:16px">אין דיווחים פתוחים. 🎉</p>';
+    return '<div class="list">' + reports.map((r) => {
+      const it = r.item || {};
+      const body = it.body ?? "";
+      const media = it.media_key ? `<img class="media" src="/m/${esc(it.media_key)}" alt="">` : "";
+      const reasons = [...new Set(String(r.reasons).split(","))].map((x) => `<span class="tag ${["intimate", "minor"].includes(x) ? "red" : ""}">${REASON[x] || x}</span>`).join(" ");
+      return `<div class="item ${r.priority >= 2 ? "p2" : ""}" data-id="${esc(String(r.ids).split(",")[0])}" data-uid="${esc(it.user_id || it.uid || "")}">
+        <div class="row">${reasons}<span class="tag">${r.n} דיווחים</span><span class="tag">${r.item_type === "chat" ? "צ׳אט" : it.kind === "image" ? "תמונה" : "תגובה"}</span><span class="small">מאז ${when(r.first_at)}</span>${it.status ? `<span class="tag">${esc(it.status)}</span>` : ""}</div>
+        <div class="small" style="margin-top:6px">${esc(it.user_name || it.name || "")} · <span dir="ltr">${esc(it.meta?.url || "")}</span></div>
+        ${body ? `<div class="body">${esc(body)}</div>` : ""}${media}
+        ${r.details ? `<div class="small">פרטי המדווח: ${esc(r.details)}</div>` : ""}
+        ${status === "open" ? `<div class="row" style="margin-top:10px"><input class="why" placeholder="נימוק להחלטה (נשמר ביומן)"><button class="btn btn-danger" data-a="hide">הסרה</button><button class="btn btn-secondary" data-a="restore">השארה/שחזור</button><button class="btn btn-secondary" data-a="dismiss">דחיית הדיווח</button><button class="btn btn-secondary" data-a="ban">השעיית המפרסם</button></div>` : ""}
+        ${it.user_id || it.uid ? "" : '<div class="small">התוכן כבר לא קיים בחדר.</div>'}
+      </div>`;
+    }).join("") + "</div>";
+  },
+  async resolved() { return VIEWS.reports("resolved"); },
+  async contacts() {
+    const { contacts } = await api("contacts");
+    if (!contacts.length) return '<p class="small" style="margin-top:16px">אין פניות.</p>';
+    return '<div class="list">' + contacts.map((c) => `<div class="item" data-id="${esc(c.id)}"><div class="row"><span class="tag ${c.kind === "takedown" ? "red" : ""}">${{ takedown: "הסרה", privacy: "פרטיות", publisher: "בעל אתר", accessibility: "נגישות", other: "אחר" }[c.kind] || c.kind}</span><span class="tag">${c.status === "open" ? "פתוחה" : "טופלה"}</span><span class="small">${when(c.created_at)}</span></div><div class="small" style="margin-top:6px">${esc(c.name || "")} · <a href="mailto:${esc(c.email)}" dir="ltr">${esc(c.email)}</a> ${c.url ? `· <a href="${esc(c.url)}" target="_blank" rel="noopener" dir="ltr">${esc(c.url)}</a>` : ""}</div><div class="body">${esc(c.message)}</div>${c.status === "open" ? '<button class="btn btn-secondary" data-a="done">סימון כטופלה</button>' : ""}</div>`).join("") + "</div>";
+  },
+  async log() {
+    const { log } = await api("log");
+    return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>פעולה</th><th>יעד</th><th>נימוק</th></tr>${log.map((l) => `<tr><td>${when(l.at)}</td><td>${l.actor === "auto" ? "אוטומטי" : "מנהל"}</td><td>${ACTION[l.action] || esc(l.action)}</td><td class="small" dir="ltr">${esc(l.target_type)} ${esc(l.target_id)}</td><td>${esc(l.reason || "")}</td></tr>`).join("")}</table>`;
+  },
+  async users() {
+    const q = $("#uq")?.value || "";
+    const { users } = await api("users?q=" + encodeURIComponent(q));
+    return `<div class="row" style="margin-top:16px"><input id="uq" placeholder="חיפוש לפי שם או מזהה" value="${esc(q)}"><button class="btn btn-secondary" id="us">חיפוש</button></div><table style="margin-top:12px"><tr><th>שם</th><th>מזהה</th><th>הצטרף</th><th>העלאות</th><th></th></tr>${users.map((u) => `<tr data-id="${esc(u.id)}"><td>${esc(u.display_name)}</td><td class="small" dir="ltr">${esc(u.id)}</td><td>${when(u.created_at)}</td><td>${u.credits_media}</td><td>${u.banned ? '<button class="btn btn-secondary" data-a="unban">ביטול השעיה</button>' : '<button class="btn btn-danger" data-a="ban">השעיה</button> <button class="btn btn-secondary" data-a="credit">+5 העלאות</button>'}</td></tr>`).join("")}</table>`;
+  },
+  async ads() {
+    const { ads } = await api("ads");
+    return `<form id="adf" class="item" style="margin-top:16px"><div class="row"><input name="advertiser" placeholder="שם המפרסם" required><input name="title" placeholder="כותרת (עד 140 תווים)" required maxlength="140"></div><div class="row" style="margin-top:8px"><input name="body" placeholder="טקסט משני (לא חובה)"><input name="url" placeholder="https://… קישור" dir="ltr" required><input name="image_url" placeholder="קישור לתמונה (לא חובה)" dir="ltr"></div><div class="row" style="margin-top:8px"><input name="target_domain" placeholder="דומיין יעד (ריק = בכל מקום)" dir="ltr"><select name="placement"><option value="top">ראש הפאנל</option><option value="feed">בתוך התגובות</option></select><button class="btn btn-primary">הוספת מודעה</button></div><p class="small">לפני פרסום: ודאו שהמודעה לא משתמשת במותג של האתר המוצג, ושהמפרסם אושר ידנית.</p></form>
+      <table style="margin-top:12px"><tr><th>מפרסם</th><th>כותרת</th><th>יעד</th><th>מיקום</th><th>חשיפות</th><th>קליקים</th><th></th></tr>${ads.map((a) => `<tr data-id="${esc(a.id)}"><td>${esc(a.advertiser)}</td><td>${esc(a.title)}</td><td dir="ltr">${esc(a.target_domain || "הכל")}</td><td>${a.placement === "top" ? "ראש" : "תגובות"}</td><td>${a.impressions}</td><td>${a.clicks}</td><td><button class="btn btn-secondary" data-a="del">מחיקה</button></td></tr>`).join("")}</table>`;
+  },
+  async domains() {
+    const { domains } = await api("domains");
+    return `<form id="df" class="item" style="margin-top:16px"><div class="row"><input name="domain" placeholder="example.co.il" dir="ltr" required><label><input type="checkbox" name="no_comments" style="width:auto"> בלי תגובות</label><label><input type="checkbox" name="no_ads" style="width:auto"> בלי מודעות</label><label><input type="checkbox" name="disabled" style="width:auto"> כיבוי מלא</label><input name="note" placeholder="הערה"><button class="btn btn-primary">שמירה</button></div></form>
+      <table style="margin-top:12px"><tr><th>דומיין</th><th>תגובות</th><th>מודעות</th><th>כבוי</th><th>הערה</th><th></th></tr>${domains.map((d) => `<tr data-id="${esc(d.domain)}"><td dir="ltr">${esc(d.domain)}</td><td>${d.no_comments ? "✗" : "✓"}</td><td>${d.no_ads ? "✗" : "✓"}</td><td>${d.disabled ? "כבוי" : ""}</td><td>${esc(d.note || "")}</td><td><button class="btn btn-secondary" data-a="del">הסרה</button></td></tr>`).join("")}</table>`;
+  },
+  async terms() {
+    const { terms } = await api("terms");
+    return `<form id="tf" class="item" style="margin-top:16px"><label>הוספת מילים או ביטויים לחסימה (שורה לכל ביטוי)</label><textarea name="terms" style="min-height:90px"></textarea><div style="margin-top:8px"><button class="btn btn-primary">הוספה</button></div><p class="small">בנוסף לרשימה המובנית. ההתאמה מתעלמת מניקוד, מאותיות סופיות ומנקודות בין אותיות, ותופסת גם תחיליות (ו, ה, ש, ב, ל, כ, מ).</p></form>
+      <div class="row" style="margin-top:12px">${terms.map((t) => `<span class="tag" data-id="${esc(t.term)}">${esc(t.term)} <a href="#" data-a="del">✕</a></span>`).join(" ") || '<span class="small">אין מילים נוספות.</span>'}</div>`;
+  },
+};
+const BIND = {
+  reports(v) {
+    v.onclick = async (e) => {
+      const a = e.target.dataset.a; if (!a) return;
+      const it = e.target.closest(".item"); const note = it.querySelector(".why")?.value || "";
+      if (a === "ban") { if (!confirm("להשעות את המפרסם ולמחוק את כל התוכן שלו?")) return; await api("users/" + it.dataset.uid, { method: "POST", body: { ban: true, purge: true, note } }); await api("reports/" + it.dataset.id, { method: "POST", body: { action: "hide", note } }); }
+      else await api("reports/" + it.dataset.id, { method: "POST", body: { action: a, note } });
+      start();
+    };
+  },
+  contacts(v) { v.onclick = async (e) => { if (e.target.dataset.a === "done") { await api("contacts/" + e.target.closest(".item").dataset.id, { method: "POST" }); start(); } }; },
+  users(v) {
+    $("#us").onclick = () => render();
+    v.onclick = async (e) => {
+      const a = e.target.dataset.a; if (!a) return; const id = e.target.closest("tr").dataset.id;
+      if (a === "ban") { const purge = confirm("למחוק גם את כל התוכן שפרסם?"); await api("users/" + id, { method: "POST", body: { ban: true, purge, note: prompt("נימוק:") || "" } }); }
+      if (a === "unban") await api("users/" + id, { method: "POST", body: { ban: false } });
+      if (a === "credit") await api("credits", { method: "POST", body: { userId: id, media: 5 } });
+      render();
+    };
+  },
+  ads(v) {
+    $("#adf").onsubmit = async (e) => { e.preventDefault(); await api("ads", { method: "POST", body: Object.fromEntries(new FormData(e.target)) }); start(); };
+    v.onclick = async (e) => { if (e.target.dataset.a === "del" && confirm("למחוק את המודעה?")) { await api("ads/" + e.target.closest("tr").dataset.id, { method: "DELETE" }); start(); } };
+  },
+  domains(v) {
+    $("#df").onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.target); await api("domains", { method: "POST", body: { domain: f.get("domain"), note: f.get("note"), no_comments: !!f.get("no_comments"), no_ads: !!f.get("no_ads"), disabled: !!f.get("disabled") } }); render(); };
+    v.onclick = async (e) => { if (e.target.dataset.a === "del") { await api("domains/" + encodeURIComponent(e.target.closest("tr").dataset.id), { method: "DELETE" }); render(); } };
+  },
+  terms(v) {
+    $("#tf").onsubmit = async (e) => { e.preventDefault(); await api("terms", { method: "POST", body: { terms: new FormData(e.target).get("terms") } }); render(); };
+    v.onclick = async (e) => { if (e.target.dataset.a === "del") { e.preventDefault(); await api("terms/" + encodeURIComponent(e.target.closest(".tag").dataset.id), { method: "DELETE" }); render(); } };
+  },
+};
+token ? start() : showLogin();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+node_modules/
+.wrangler/
+.dev.vars
+*.log
+.DS_Store
+panel/dist/
+extension/panel/
+worker/public/panel/
+worker/public/addmedia-extension.zip
+mobile/.expo/
+mobile/dist/
+mobile/ios/
+mobile/android/
+addmedia-extension.zip

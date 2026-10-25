@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "AddMedia",
+    "slug": "addmedia",
+    "scheme": "addmedia",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.noaplate.addmedia",
+      "supportsTablet": true,
+      "infoPlist": {
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.noaplate.addmedia",
+      "softwareKeyboardLayoutMode": "resize",
+      "edgeToEdgeEnabled": true
+    },
+    "extra": {
+      "panelUrl": "https://addmedia.noaplate.com/panel/",
+      "homeUrl": "https://www.ynet.co.il/home/0,7340,L-8,00.html"
+    }
+  }
+}

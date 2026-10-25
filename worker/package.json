@@ -1,0 +1,17 @@
+{
+  "name": "addmedia-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:local": "wrangler d1 migrations apply addmedia --local",
+    "build": "cd ../panel && npm ci && npm run build:web && VITE_API_BASE=${API_BASE:-https://addmedia.noaplate.com} npx vite build --mode extension --outDir ../extension/panel --emptyOutDir && cd ../extension && rm -f ../worker/public/addmedia-extension.zip && npx --yes bestzip@2 ../worker/public/addmedia-extension.zip *",
+    "deploy": "wrangler deploy && wrangler d1 migrations apply addmedia --remote",
+    "test": "node test/e2e.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.152.0"
+  }
+}

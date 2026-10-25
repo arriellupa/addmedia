@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>יצירת קשר ובקשת הסרה — AddMedia</title>
+<meta name="description" content="פנייה, בקשת הסרת תוכן, פרטיות ובעלי אתרים.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <a class="logo" href="/"><img src="/favicon.svg" alt="">AddMedia</a>
+  <nav class="nav">
+    <a href="/rules/">כללי הקהילה</a>
+    <a href="/publishers/">לבעלי אתרים</a>
+    <a href="/contact/">יצירת קשר</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+  <h1>יצירת קשר ובקשת הסרה</h1>
+  <p class="lead">כל פנייה מגיעה ישירות לצוות הניהול ומקבלת מענה. לבקשת הסרה — צרפו את כתובת הדף ותארו את התוכן.</p>
+  <form id="f" class="card" style="margin-top:20px">
+    <label for="kind">נושא</label>
+    <select id="kind" name="kind">
+      <option value="takedown">בקשת הסרת תוכן / הפרת זכויות</option>
+      <option value="privacy">פרטיות ומחיקת מידע</option>
+      <option value="publisher">בעל אתר — כיבוי או שיתוף פעולה</option>
+      <option value="accessibility">נגישות</option>
+      <option value="other">אחר</option>
+    </select>
+    <label for="name">שם (לא חובה)</label>
+    <input id="name" name="name" maxlength="80">
+    <label for="email">מייל לחזרה</label>
+    <input id="email" name="email" type="email" dir="ltr" required>
+    <label for="url">כתובת הדף הרלוונטי (לא חובה)</label>
+    <input id="url" name="url" dir="ltr" placeholder="https://">
+    <label for="message">פרטי הפנייה</label>
+    <textarea id="message" name="message" required minlength="10"></textarea>
+    <div style="margin-top:16px"><button class="btn btn-primary" type="submit">שליחה</button></div>
+    <div id="msg"></div>
+  </form>
+</main>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get("kind")) document.getElementById("kind").value = q.get("kind");
+  if (q.get("url")) document.getElementById("url").value = q.get("url");
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target, out = document.getElementById("msg");
+    const body = Object.fromEntries(new FormData(f));
+    f.querySelector("button").disabled = true;
+    try {
+      const r = await fetch("/v1/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error?.message || "השליחה נכשלה");
+      f.innerHTML = '<div class="ok">הפנייה התקבלה. מספר פנייה: ' + j.id + '</div>';
+    } catch (err) {
+      out.className = "err"; out.textContent = err.message; f.querySelector("button").disabled = false;
+    }
+  });
+</script>
+
+<footer class="foot"><div class="foot-in">
+  <span>© 2026 AddMedia</span>
+  <a href="/terms/">תנאי שימוש</a>
+  <a href="/privacy/">מדיניות פרטיות</a>
+  <a href="/rules/">כללי הקהילה</a>
+  <a href="/accessibility/">הצהרת נגישות</a>
+  <a href="/publishers/">לבעלי אתרים</a>
+  <a href="/contact/">יצירת קשר ובקשת הסרה</a>
+  <span>AddMedia אינה קשורה לאתרים שלצידם היא מוצגת.</span>
+</div></footer>
+</body>
+</html>

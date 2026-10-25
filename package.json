@@ -1,0 +1,14 @@
+{
+  "name": "addmedia",
+  "private": true,
+  "description": "AddMedia — live chat, talkback and media on every web page.",
+  "scripts": {
+    "setup": "npm --prefix worker install && npm --prefix panel install",
+    "dev": "npm --prefix worker run db:local && npm --prefix worker run dev",
+    "build:web": "npm --prefix panel run build:web",
+    "build:ext": "cd panel && VITE_API_BASE=${API_BASE:-https://addmedia.noaplate.com} npx vite build --mode extension --outDir ../extension/panel --emptyOutDir",
+    "build": "npm run build:web && npm run build:ext",
+    "zip:ext": "cd extension && rm -f ../addmedia-extension.zip && zip -qr ../addmedia-extension.zip . -x '*.DS_Store'",
+    "test": "node worker/test/e2e.mjs"
+  }
+}

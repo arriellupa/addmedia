@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "addmedia",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "addmedia.noaplate.com", "custom_domain": true }],
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "PageRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PageRoom"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "addmedia",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "addmedia-media" }],
+  "vars": {
+    "APP_ORIGIN": "https://addmedia.noaplate.com",
+    "FROM_EMAIL": "AddMedia <noreply@noaplate.com>",
+    "TEST_PURCHASES": "true",
+    "DEV_MODE": "false"
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
