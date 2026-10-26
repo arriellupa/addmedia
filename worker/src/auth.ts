@@ -47,7 +47,15 @@ export async function startAuth(env: Env, body: any): Promise<Response> {
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: env.FROM_EMAIL, to: [email], subject: `קוד הכניסה שלך: ${code}`, html, text: `קוד הכניסה שלך ל-AddMedia: ${code}` }),
     });
-    if (!r.ok) return fail(502, "email_failed", "שליחת המייל נכשלה. נסו שוב בעוד רגע.");
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      console.error("resend failed", r.status, detail.slice(0, 500));
+      let reason = "";
+      try {
+        reason = String(JSON.parse(detail).message || "").slice(0, 160);
+      } catch {}
+      return fail(502, "email_failed", `שליחת המייל נכשלה (${r.status}${reason ? ": " + reason : ""}).`);
+    }
     return json({ sent: true });
   }
   if (isTrue(env.DEV_MODE)) return json({ sent: true, devCode: code });
