@@ -2,6 +2,7 @@
 import { handleAdmin, modLog } from "./admin";
 import { User, getUser, logout, publicUser, startAuth, tokenFrom, verifyAuth } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
+import { debugPage, debugVia } from "./debug";
 import { checkImage, checkPost, checkText } from "./moderation";
 import type { RoomMeta } from "./room";
 import { CORS, DAY, Env, clampStr, fail, idSecret, isTrue, json, now, randomId, readJson } from "./util";
@@ -384,6 +385,8 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     try {
       if (p === "/v1/health") return json({ ok: true, at: now() });
+      if (p === "/v1/debug") return await debugPage(req, env, url);
+      if (p === "/v1/debug/via") return await debugVia(req, env, url);
       if (p === "/v1/panel" && req.method === "GET") return await panel(req, env, url, ctx);
       if (p === "/v1/ws") return await websocket(req, env, url);
       if (p === "/v1/posts" && req.method === "POST") return await createPost(req, env, url);
