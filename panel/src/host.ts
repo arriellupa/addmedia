@@ -117,10 +117,18 @@ function webHost(): Host {
     kind: "web",
     layout: "web",
     start(onPage) {
+      // sources: ?url= (links, bookmarklet), or Android's share sheet, which often puts the link inside ?text=
       const q = new URLSearchParams(location.search);
-      const url = q.get("url");
-      if (url) onPage({ url, title: q.get("title") });
-      else onPage(null);
+      const url = q.get("url") || findUrl(q.get("text")) || findUrl(q.get("title"));
+      if (url) {
+        let favicon: string | null = null;
+        try {
+          favicon = new URL("/favicon.ico", url).href;
+        } catch {}
+        onPage({ url, canonical: q.get("canonical") || null, title: cleanTitle(q.get("title"), url) || null, favicon });
+        // keep a clean, shareable address bar
+        if (q.has("text")) history.replaceState(null, "", `${location.pathname}?url=${encodeURIComponent(url)}`);
+      } else onPage(null);
       window.addEventListener("message", (e) => {
         if (e.data?.t === "page") onPage(e.data.page);
       });
@@ -143,6 +151,16 @@ function webHost(): Host {
     },
     haptic() {},
   };
+}
+
+export function findUrl(text: string | null | undefined): string | null {
+  const m = String(text || "").match(/https?:\/\/[^\s<>"']+/i);
+  return m ? m[0].replace(/[).,;!?'"״׳]+$/, "") : null;
+}
+
+function cleanTitle(title: string | null, url: string): string {
+  const t = String(title || "").replace(url, "").trim();
+  return /^https?:\/\//.test(t) ? "" : t.slice(0, 200);
 }
 
 export const host: Host =

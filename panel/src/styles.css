@@ -494,3 +494,10 @@
     .head-in { padding-bottom: 8px; }
   }
 }
+
+@layer components {
+  .paste-btn { margin-top: 14px; width: 100%; max-width: 440px; }
+  .state .form-err { width: 100%; max-width: 440px; margin-top: 8px; }
+  .state > a.fine { margin-top: 14px; }
+  a.icon-btn:hover { text-decoration: none; }
+}

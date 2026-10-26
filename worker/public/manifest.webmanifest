@@ -1,0 +1,23 @@
+{
+  "name": "AddMedia",
+  "short_name": "AddMedia",
+  "description": "שיחה חיה, תגובות ומדיה על כל דף — עם מי שקורא אותו עכשיו.",
+  "id": "/panel/",
+  "start_url": "/panel/",
+  "scope": "/",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "he",
+  "background_color": "#f4f3f6",
+  "theme_color": "#a3195b",
+  "icons": [
+    { "src": "/icons/192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "/panel/",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}

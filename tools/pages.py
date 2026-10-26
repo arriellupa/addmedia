@@ -1,4 +1,5 @@
 # Generates the static Hebrew pages of the AddMedia site into worker/public. Run: python3 tools/pages.py
+import json
 import os
 
 PUB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "worker", "public")
@@ -20,6 +21,7 @@ HEAD = """<!doctype html>
 <header class="top"><div class="top-in">
   <a class="logo" href="/"><img src="/favicon.svg" alt="">AddMedia</a>
   <nav class="nav">
+    <a href="/mobile/">בטלפון</a>
     <a href="/rules/">כללי הקהילה</a>
     <a href="/publishers/">לבעלי אתרים</a>
     <a href="/contact/">יצירת קשר</a>
@@ -61,6 +63,7 @@ page("", "AddMedia — כל דף באינטרנט הוא חדר", "שיחה חי
       <p class="lead">AddMedia מוסיפה לכל כתבה, סרטון או דף שיחה חיה, תגובות ומדיה — עם כל מי שקורא אותו בדיוק עכשיו. האתר נשאר כמו שהוא; השיחה צמודה אליו.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:24px">
         <a class="btn btn-primary" href="/get/">הוספה ל-Chrome</a>
+        <a class="btn btn-secondary" href="/mobile/">בטלפון</a>
         <a class="btn btn-secondary" href="/panel/?url=https://www.ynet.co.il/">לנסות בדפדפן</a>
       </div>
       <p style="font-size:13px;color:var(--t3);margin-top:14px">טקסט וצ׳אט בחינם. תמונות והצמדה ארוכה — בתשלום קטן.</p>
@@ -254,4 +257,76 @@ page("contact", "יצירת קשר ובקשת הסרה — AddMedia", "פניי�
   });
 </script>
 """)
+
+BOOKMARKLET = ("javascript:(function(){var c=document.querySelector('link[rel=canonical]');"
+               "var u='https://addmedia.noaplate.com/panel/?url='+encodeURIComponent(location.href)"
+               "+(c?'&canonical='+encodeURIComponent(c.href):'')"
+               "+'&title='+encodeURIComponent((document.querySelector('meta[property=\"og:title\"]')||{}).content||document.title);"
+               "var w=window.open(u,'_blank');if(!w)location.href=u;})();")
+
+page("mobile", "AddMedia בטלפון", "איך משתמשים ב-AddMedia ב-iPhone ובאנדרואיד.", """
+<main class="wrap">
+  <h1>AddMedia בטלפון</h1>
+  <p class="lead">קוראים כתבה? בלחיצה אחת רואים מי עוד קורא אותה עכשיו, ומדברים איתם. בחרו את הטלפון שלכם.</p>
+
+  <h2>אנדרואיד (Chrome)</h2>
+  <div class="card">
+    <h3>התקנה חד-פעמית</h3>
+    <ol>
+      <li>פתחו ב-Chrome את <a href="/panel/">addmedia.noaplate.com/panel</a>.</li>
+      <li>לחצו על תפריט ⋮ למעלה ובחרו <strong>"הוספה למסך הבית"</strong> ואז <strong>"התקנה"</strong>.</li>
+    </ol>
+    <h3>שימוש</h3>
+    <ol>
+      <li>בכל כתבה לחצו <strong>שיתוף</strong>.</li>
+      <li>בחרו <strong>AddMedia</strong> — השיחה של אותה כתבה נפתחת.</li>
+    </ol>
+  </div>
+
+  <h2>iPhone (Safari)</h2>
+  <div class="card">
+    <h3>התקנה חד-פעמית</h3>
+    <ol>
+      <li>פתחו ב-Safari את <a href="/panel/">addmedia.noaplate.com/panel</a>.</li>
+      <li>לחצו על כפתור השיתוף <span aria-hidden="true">⬆︎</span> ובחרו <strong>"הוספה למסך הבית"</strong>.</li>
+    </ol>
+    <h3>שימוש</h3>
+    <ol>
+      <li>בכתבה לחצו <strong>שיתוף</strong> ואז <strong>"העתקה"</strong>.</li>
+      <li>פתחו את AddMedia ממסך הבית ולחצו <strong>"הדבקת קישור מהלוח"</strong>.</li>
+    </ol>
+  </div>
+
+  <h2>כפתור בסימניות — הכי מהיר</h2>
+  <p>כפתור שנשמר בסימניות ופותח את השיחה של הדף שאתם קוראים, בלי להעתיק כלום. עובד ב-Safari, ב-Chrome ובמחשב.</p>
+  <div class="card">
+    <h3>1. העתקת הקוד</h3>
+    <p><button class="btn btn-primary" id="copyBm" type="button">העתקת קוד הכפתור</button> <span id="copied" class="meta" hidden>הועתק ✓</span></p>
+    <h3>2. שמירה כסימנייה</h3>
+    <ol>
+      <li><strong>iPhone:</strong> בדף הזה לחצו שיתוף ← <strong>"הוספת סימנייה"</strong> ושמרו בשם <strong>AddMedia</strong>. אחר כך: סימניות ← <strong>עריכה</strong> ← AddMedia ← מחקו את הכתובת והדביקו את הקוד ← <strong>סיום</strong>.</li>
+      <li><strong>אנדרואיד:</strong> בדף הזה לחצו ⋮ ← ☆ (שמירה כסימנייה) ← <strong>עריכה</strong>. שנו את השם ל-<strong>AddMedia</strong>, ובשדה הכתובת מחקו הכול והדביקו את הקוד.</li>
+      <li><strong>מחשב:</strong> גררו את הכפתור הזה לסרגל הסימניות: <a class="btn btn-secondary" id="bmLink" href="#">AddMedia</a></li>
+    </ol>
+    <h3>3. שימוש</h3>
+    <ol>
+      <li><strong>iPhone:</strong> בכתבה לחצו על סמל הסימניות ובחרו <strong>AddMedia</strong>.</li>
+      <li><strong>אנדרואיד:</strong> בכתבה הקלידו בשורת הכתובת <strong>AddMedia</strong> ובחרו את הסימנייה מההצעות (פתיחה מתפריט הסימניות לא מפעילה את הכפתור).</li>
+    </ol>
+  </div>
+  <p class="meta">הכפתור רק קורא את כתובת הדף ואת כותרתו ופותח את AddMedia בלשונית חדשה. הוא לא משנה את הדף ולא שומר דבר.</p>
+</main>
+<script>
+  const BM = %s;
+  document.getElementById("bmLink").setAttribute("href", BM);
+  document.getElementById("bmLink").addEventListener("click", (e) => { e.preventDefault(); alertless(); });
+  function alertless() { document.getElementById("copyBm").focus(); }
+  document.getElementById("copyBm").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(BM); }
+    catch { const t = document.createElement("textarea"); t.value = BM; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+    document.getElementById("copied").hidden = false;
+  });
+</script>
+""" % json.dumps(BOOKMARKLET))
+
 print("pages ok")

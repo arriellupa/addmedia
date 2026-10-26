@@ -1,7 +1,7 @@
 import { effect } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
-import { host } from "./host";
-import { Lock, Refresh } from "./icons";
+import { findUrl, host } from "./host";
+import { Copy, Lock, Refresh } from "./icons";
 import { bundle, load, loadError, loading, page, presence, setPage, tab } from "./state";
 import { BrandMark, Skeleton, Sponsored, Toast } from "./ui/Bits";
 import { ChatView } from "./ui/Chat";
@@ -94,24 +94,51 @@ function Disabled({ reason }: { reason: string }) {
 
 function NoPage() {
   const [url, setUrl] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const go = (raw: string) => {
+    const u = findUrl(raw) || (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw.trim()) ? "https://" + raw.trim() : null);
+    if (!u) return setErr("לא נמצא קישור. העתיקו את כתובת הכתבה ונסו שוב.");
+    setErr(null);
+    history.replaceState(null, "", `${location.pathname}?url=${encodeURIComponent(u)}`);
+    setPage({ url: u });
+  };
+  const paste = async () => {
+    try {
+      go(await navigator.clipboard.readText());
+    } catch {
+      setErr("הדפדפן לא איפשר לקרוא מהלוח. הדביקו את הקישור בשדה.");
+    }
+  };
+  if (host.kind !== "web")
+    return (
+      <div class="state">
+        <BrandMark />
+        <div class="empty-title">פתחו אתר כלשהו</div>
+        <div class="empty-sub">ברגע שתגלשו לכתבה, לסרטון או לכל דף אחר — תראו כאן מי עוד קורא אותו עכשיו.</div>
+      </div>
+    );
   return (
     <div class="state">
       <BrandMark />
-      <div class="empty-title">פתחו אתר כלשהו</div>
-      <div class="empty-sub">ברגע שתגלשו לכתבה, לסרטון או לכל דף אחר — תראו כאן מי עוד קורא אותו עכשיו.</div>
-      {host.kind === "web" && (
-        <form
-          class="row demo-url"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const u = url.trim();
-            if (u) setPage({ url: /^https?:\/\//.test(u) ? u : "https://" + u });
-          }}
-        >
-          <input class="input" dir="ltr" placeholder="https://www.ynet.co.il/…" value={url} onInput={(e) => setUrl(e.currentTarget.value)} />
-          <button class="btn btn-primary btn-sm">פתיחה</button>
-        </form>
+      <div class="empty-title">על איזה דף מדברים?</div>
+      <div class="empty-sub">העתיקו את הקישור לכתבה, לסרטון או לכל דף — ותראו מי עוד קורא אותו עכשיו.</div>
+      {"clipboard" in navigator && "readText" in (navigator.clipboard || {}) && (
+        <button class="btn btn-primary btn-lg paste-btn" onClick={paste}>
+          <Copy size={18} /> הדבקת קישור מהלוח
+        </button>
       )}
+      <form
+        class="row demo-url"
+        onSubmit={(e) => {
+          e.preventDefault();
+          go(url);
+        }}
+      >
+        <input class="input" dir="ltr" inputMode="url" placeholder="https://www.ynet.co.il/…" value={url} onInput={(e) => setUrl(e.currentTarget.value)} />
+        <button class="btn btn-secondary btn-sm">פתיחה</button>
+      </form>
+      {err && <div class="form-err">{err}</div>}
+      <a class="fine" href="/mobile/">איך מוסיפים כפתור AddMedia לדפדפן בטלפון</a>
     </div>
   );
 }

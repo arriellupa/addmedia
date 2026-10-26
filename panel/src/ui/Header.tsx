@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { count } from "../fmt";
 import { host } from "../host";
-import { FileI, Globe, SideI, SplitI } from "../icons";
+import { External, FileI, Globe, SideI, SplitI } from "../icons";
 import { bundle, me, page, presence, scope, setScope, sheet, status, tab, visibleChat, type Tab } from "../state";
 import { Avatar, LiveDot } from "./Bits";
 
@@ -73,6 +73,11 @@ export function Header() {
             </div>
           </div>
           <div class="head-actions">
+            {host.kind === "web" && p && (
+              <a class="icon-btn" href={p.url} target="_blank" rel="noopener" aria-label="פתיחת הכתבה" title="פתיחת הכתבה">
+                <External />
+              </a>
+            )}
             {host.kind === "extension" && host.setLayout && (
               <button
                 class="icon-btn"
