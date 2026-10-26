@@ -9,6 +9,9 @@ import { CORS, DAY, Env, clampStr, fail, idSecret, isTrue, json, now, randomId, 
 
 export { PageRoom } from "./room";
 
+// bump on each release: /v1/health shows which version is live
+const VERSION = "2026-10-26.3";
+
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 
 const PRODUCTS = [
@@ -384,7 +387,7 @@ export default {
     const p = url.pathname;
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     try {
-      if (p === "/v1/health") return json({ ok: true, at: now() });
+      if (p === "/v1/health") return json({ ok: true, at: now(), v: VERSION });
       if (p === "/v1/debug") return await debugPage(req, env, url);
       if (p === "/v1/debug/via") return await debugVia(req, env, url);
       if (p === "/v1/panel" && req.method === "GET") return await panel(req, env, url, ctx);
