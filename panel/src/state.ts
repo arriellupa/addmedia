@@ -117,7 +117,9 @@ function mergeChat(msgs: ChatMsg[]) {
 
 // ---------- loading a page ----------
 let loadSeq = 0;
-export async function load(opts: { keepChat?: boolean } = {}) {
+const quiet = (r: any) => !r || ((r.presence ?? 0) <= 1 && (r.postCount ?? r.posts?.length ?? 0) === 0 && !(r.chat?.length));
+
+export async function load(opts: { keepChat?: boolean; autoScope?: boolean } = {}): Promise<void> {
   const p = page.value;
   if (!p) {
     loading.value = false;
@@ -130,6 +132,12 @@ export async function load(opts: { keepChat?: boolean } = {}) {
   try {
     const b = await api.panel(p, scope.value, sort.value);
     if (seq !== loadSeq) return;
+    // A quiet page opens on the whole site, where the people are; the page's own room stays one tap away.
+    // Only on the first load of a page, never after the reader chose a scope.
+    if (opts.autoScope && scope.value === "page" && !b.disabled && quiet(b.room)) {
+      scope.value = "site";
+      return load({ keepChat: opts.keepChat });
+    }
     batch(() => {
       bundle.value = b;
       posts.value = b.room?.posts ?? [];
@@ -173,7 +181,7 @@ export function setPage(p: PageCtx | null) {
     loading.value = false;
     return;
   }
-  load();
+  load({ autoScope: true });
 }
 
 export function setScope(s: "page" | "site") {

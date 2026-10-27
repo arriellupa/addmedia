@@ -66,7 +66,7 @@ function Intro() {
   return (
     <div class="intro" role="note">
       <div class="intro-title">כל דף באינטרנט הוא חדר</div>
-      <div class="intro-sub">כאן מדברים עם מי שקורא איתכם את אותו דף, עכשיו. אין אף אחד בדף? עברו ל"כל האתר".</div>
+      <div class="intro-sub">כאן מדברים עם מי שקורא איתכם, עכשיו. דף שקט נפתח על «כל האתר», שם האנשים; «הדף הזה» תמיד במרחק נגיעה.</div>
       <button class="link" onClick={close}>
         הבנתי
       </button>
