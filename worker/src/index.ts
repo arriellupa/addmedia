@@ -10,7 +10,7 @@ import { CORS, DAY, Env, clampStr, fail, idSecret, isTrue, json, now, randomId, 
 export { PageRoom } from "./room";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-26.3";
+const VERSION = "2026-10-27.1";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 
