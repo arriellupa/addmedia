@@ -29,6 +29,12 @@ jobs:
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
+          # Shape of the secrets (never their values): pasting on a phone can add spaces or cut them short.
+          tok=$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
+          acc=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')
+          tokc=no; [[ "$tok" =~ ^[A-Za-z0-9_-]+$ ]] && tokc=yes
+          accc=no; [[ "$acc" =~ ^[0-9a-f]{32}$ ]] && accc=yes
+          echo "::notice title=secrets::token ${#CLOUDFLARE_API_TOKEN} chars (${#tok} without spaces), plain characters only: ${tokc}; account id ${#CLOUDFLARE_ACCOUNT_ID} chars (${#acc} without spaces), 32 hex: ${accc}"
 
       - uses: actions/checkout@v5
         if: steps.check.outputs.ok == 'true'
@@ -50,6 +56,8 @@ jobs:
         env:
           FORCE_COLOR: "0"
         run: |
+          export CLOUDFLARE_API_TOKEN=$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
+          export CLOUDFLARE_ACCOUNT_ID=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')
           set -o pipefail
           if ! npx wrangler deploy 2>&1 | tee deploy.log; then
             msg=$(tail -n 40 deploy.log | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
@@ -62,4 +70,7 @@ jobs:
         if: steps.check.outputs.ok == 'true'
         continue-on-error: true
         working-directory: worker
-        run: npx wrangler d1 migrations apply addmedia --remote
+        run: |
+          export CLOUDFLARE_API_TOKEN=$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
+          export CLOUDFLARE_ACCOUNT_ID=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')
+          npx wrangler d1 migrations apply addmedia --remote
