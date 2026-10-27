@@ -30,10 +30,10 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.check.outputs.ok == 'true'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.check.outputs.ok == 'true'
         with:
           node-version: 22
@@ -43,10 +43,19 @@ jobs:
         working-directory: worker
         run: npm ci && npm run build
 
+      # On failure the end of wrangler's output becomes an annotation, readable without the full log.
       - name: Deploy to Cloudflare
         if: steps.check.outputs.ok == 'true'
         working-directory: worker
-        run: npx wrangler deploy
+        env:
+          FORCE_COLOR: "0"
+        run: |
+          set -o pipefail
+          if ! npx wrangler deploy 2>&1 | tee deploy.log; then
+            msg=$(tail -n 40 deploy.log | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=wrangler deploy failed::${msg}"
+            exit 1
+          fi
 
       # No new migrations at the moment; a token without D1 rights should not block the deploy.
       - name: Apply database migrations
