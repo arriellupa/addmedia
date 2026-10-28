@@ -35,6 +35,10 @@ export const sheet = signal<Sheet>(null);
 export const toast = signal<{ text: string; kind?: "ok" | "err"; action?: { label: string; run: () => void } } | null>(null);
 export const replyTo = signal<Post | null>(null);
 export const sideHint = computed(() => bundle.value?.other ?? null);
+const isCampus = () => !!page.value?.url.startsWith("https://campus.addmedia.noaplate.com/");
+/** the names of the two scopes, as the composers say them */
+export const scopeNames = computed(() => (isCampus() ? { page: "הקורס", site: "כל השנה" } : { page: "הדף הזה", site: "כל האתר" }));
+export const retentionDays = computed(() => bundle.value?.settings?.retentionDays ?? 7);
 
 export const roomId = computed(() => bundle.value?.roomId ?? "");
 export const canPost = computed(() => !!bundle.value?.rules.comments);
@@ -134,7 +138,9 @@ export async function load(opts: { keepChat?: boolean; autoScope?: boolean } = {
     if (seq !== loadSeq) return;
     // A quiet page opens on the whole site, where the people are; the page's own room stays one tap away.
     // Only on the first load of a page, never after the reader chose a scope.
-    if (opts.autoScope && scope.value === "page" && !b.disabled && quiet(b.room)) {
+    const threshold = b.settings?.pageThreshold ?? 5;
+    const few = !b.room || (b.room.presence < threshold && !(b.room.chat?.length) && (b.room.postCount ?? 0) === 0) || (b.room.presence < threshold && quiet(b.room));
+    if (opts.autoScope && scope.value === "page" && !b.disabled && few) {
       scope.value = "site";
       return load({ keepChat: opts.keepChat });
     }
@@ -368,12 +374,12 @@ export async function compressImage(file: File): Promise<Blob> {
   return jpg;
 }
 
-export async function uploadImage(file: File, caption: string): Promise<boolean> {
+export async function uploadImage(file: File, caption: string, link?: string): Promise<boolean> {
   const p = page.value;
   if (!p) return false;
   try {
     const blob = await compressImage(file);
-    const r = await api.upload(p, scope.value, blob, caption);
+    const r = await api.upload(p, scope.value, blob, caption, link);
     if (!r.review) media.value = upsert(media.value, r.post);
     if (me.value) me.value = { ...me.value, credits: { ...me.value.credits, media: r.credits } };
     host.haptic("success");

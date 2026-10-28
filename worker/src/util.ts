@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   MEDIA: R2Bucket;
   ROOMS: DurableObjectNamespace<import("./room").PageRoom>;
+  DIRECTORY: DurableObjectNamespace<import("./directory").Directory>;
   ASSETS: Fetcher;
   APP_ORIGIN: string;
   FROM_EMAIL: string;

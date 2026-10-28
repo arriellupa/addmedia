@@ -71,7 +71,7 @@ function showLogin(err = "") { $("#login").hidden = false; $("#app").hidden = tr
 $("#login").addEventListener("submit", async (e) => { e.preventDefault(); token = $("#tok").value.trim(); sessionStorage.setItem("am_admin", token); start(); });
 $("#logout").addEventListener("click", (e) => { e.preventDefault(); sessionStorage.removeItem("am_admin"); token = ""; showLogin(); });
 
-const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"]];
+const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"], ["settings", "הגדרות ופרסומת"], ["docs", "מאמרים וסיכומים"]];
 let cur = "reports";
 async function start() {
   try { const s = await api("stats"); renderStats(s); } catch { return; }
@@ -137,8 +137,57 @@ const VIEWS = {
     return `<form id="tf" class="item" style="margin-top:16px"><label>הוספת מילים או ביטויים לחסימה (שורה לכל ביטוי)</label><textarea name="terms" style="min-height:90px"></textarea><div style="margin-top:8px"><button class="btn btn-primary">הוספה</button></div><p class="small">בנוסף לרשימה המובנית. ההתאמה מתעלמת מניקוד, מאותיות סופיות ומנקודות בין אותיות, ותופסת גם תחיליות (ו, ה, ש, ב, ל, כ, מ).</p></form>
       <div class="row" style="margin-top:12px">${terms.map((t) => `<span class="tag" data-id="${esc(t.term)}">${esc(t.term)} <a href="#" data-a="del">✕</a></span>`).join(" ") || '<span class="small">אין מילים נוספות.</span>'}</div>`;
   },
+  async settings() {
+    const { settings: s } = await api("settings");
+    const ad = s.centerAd;
+    const ck = (b) => (b ? "checked" : "");
+    return `<form id="setf" class="item" style="margin-top:16px;display:grid;gap:14px">
+      <h3 style="margin:0">הפאנל ודף המדיה</h3>
+      <div class="row" style="gap:18px;flex-wrap:wrap">
+        <label>סף לדף בודד (קוראים)<br><input name="pageThreshold" type="number" min="1" max="500" value="${s.pageThreshold}" style="width:110px"><div class="small">מתחת לזה הפאנל נפתח על כל האתר</div></label>
+        <label>תמונות בחינם למשתמש<br><input name="freeMedia" type="number" min="0" max="100" value="${s.freeMedia}" style="width:110px"></label>
+        <label>ימי שמירה לתוכן<br><input name="retentionDays" type="number" min="1" max="365" value="${s.retentionDays}" style="width:110px"></label>
+        <label style="align-self:end"><input name="linkMedia" type="checkbox" ${ck(s.linkMedia)}> תמונות יכולות להיות קישור חי</label>
+      </div>
+      <h3 style="margin:8px 0 0">חלון הפרסום במרכז</h3>
+      <div class="small">מוצג בדף המדיה, במרכז המסך. רק מכאן אפשר לשנות אותו.</div>
+      <label><input name="ad_on" type="checkbox" ${ck(ad.on)}> מופעל</label>
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <label>תווית<br><input name="ad_label" value="${esc(ad.label)}" style="width:140px"></label>
+        <label style="flex:1;min-width:260px">כותרת<br><input name="ad_title" value="${esc(ad.title)}" maxlength="120" style="width:100%"></label>
+      </div>
+      <label>טקסט<br><input name="ad_body" value="${esc(ad.body)}" maxlength="300" style="width:100%"></label>
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <label style="flex:1;min-width:260px">קישור (https://…)<br><input name="ad_url" dir="ltr" value="${esc(ad.url || "")}" style="width:100%"></label>
+        <label style="flex:1;min-width:260px">תמונה (https://…)<br><input name="ad_image" dir="ltr" value="${esc(ad.image || "")}" style="width:100%"></label>
+      </div>
+      <div class="row" style="gap:16px"><label><input name="mode_center" type="checkbox" ${ck(ad.modes.includes("center"))}> במרכז הבקרה</label><label><input name="mode_campus" type="checkbox" ${ck(ad.modes.includes("campus"))}> בגרסת הסטודנטים</label></div>
+      <div><button class="btn btn-primary">שמירה</button> <span id="setmsg" class="small"></span></div>
+    </form>`;
+  },
+  async docs() {
+    const { docs } = await api("docs");
+    if (!docs.length) return '<p class="small" style="margin-top:16px">עוד לא הועלו מסמכים.</p>';
+    return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>מקום</th><th>סוג</th><th>כותרת</th><th>גודל</th><th></th></tr>${docs.map((d) => `<tr data-id="${esc(d.id)}"><td>${when(d.created_at)}</td><td>${esc(d.user_name)}</td><td>${esc(d.inst)} · ${esc(d.faculty)} · ${d.year}${d.course ? " · " + esc(d.course) : ""}</td><td>${d.kind === "summary" ? "סיכום" : "מאמר"}</td><td><a href="/v1/campus/docs/${esc(d.id)}/file" target="_blank" rel="noopener">${esc(d.title)}</a></td><td>${Math.round(d.size / 1024)} KB</td><td><button class="btn btn-danger btn-sm" data-del="${esc(d.id)}">הסרה</button></td></tr>`).join("")}</table>`;
+  },
 };
 const BIND = {
+  settings(v) {
+    $("#setf").onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const body = {
+        pageThreshold: Number(f.get("pageThreshold")), freeMedia: Number(f.get("freeMedia")), retentionDays: Number(f.get("retentionDays")), linkMedia: !!f.get("linkMedia"),
+        centerAd: { on: !!f.get("ad_on"), label: f.get("ad_label"), title: f.get("ad_title"), body: f.get("ad_body"), url: f.get("ad_url") || null, image: f.get("ad_image") || null,
+          modes: [f.get("mode_center") ? "center" : null, f.get("mode_campus") ? "campus" : null].filter(Boolean) },
+      };
+      await api("settings", { method: "POST", body });
+      $("#setmsg").textContent = "נשמר. השינוי מגיע לכולם תוך דקה.";
+    };
+  },
+  docs(v) {
+    v.onclick = async (e) => { const id = e.target.dataset.del; if (id && confirm("להסיר את המסמך?")) { await api("docs/" + id, { method: "DELETE" }); render(); } };
+  },
   reports(v) {
     v.onclick = async (e) => {
       const a = e.target.dataset.a; if (!a) return;

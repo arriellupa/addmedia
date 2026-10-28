@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ChatMsg } from "../api";
 import { clock, count } from "../fmt";
 import { ArrowDown, Clock, More, Plus, Refresh, Send } from "../icons";
-import { bundle, canPost, me, needAuth, presence, retryChat, scope, sendChat, setScope, sheet, slow, slowUntil, visibleChat } from "../state";
+import { bundle, canPost, me, needAuth, presence, retryChat, scope, scopeNames, sendChat, setScope, sheet, slow, slowUntil, visibleChat } from "../state";
 import { Avatar, ClipArt, LiveDot } from "./Bits";
 
 const GROUP_MS = 2 * 60_000;
@@ -205,7 +205,7 @@ function ChatComposer() {
   return (
     <div class="composer">
       <div class="composer-to">
-        נשלח אל: <strong>{scope.value === "page" ? "הדף הזה" : "כל האתר"}</strong>
+        נשלח אל: <strong>{scopeNames.value[scope.value]}</strong>
       </div>
       <div class="composer-row">
         <button class="composer-plus" aria-label="המדיה שלי — הוספת תמונה" onClick={() => needAuth(() => (sheet.value = { type: "mymedia", section: "create" }))}>

@@ -3,7 +3,7 @@ import { useState } from "preact/hooks";
 import type { Post } from "../api";
 import { ago, count, left } from "../fmt";
 import { Heart, More, Pin, Reply, X } from "../icons";
-import { bundle, canPost, loadMorePosts, me, needAuth, postsNext, replyTo, scope, sheet, sort, setSort, submitPost, toggleLike, visiblePosts } from "../state";
+import { bundle, canPost, loadMorePosts, me, needAuth, postsNext, replyTo, retentionDays, scope, scopeNames, sheet, sort, setSort, submitPost, toggleLike, visiblePosts } from "../state";
 import { Avatar, Sponsored } from "./Bits";
 
 export function CommentsView() {
@@ -26,7 +26,7 @@ export function CommentsView() {
         {!top.length && (
           <div class="empty">
             <div class="empty-title">עוד אין תגובות</div>
-            <div class="empty-sub">התגובה הראשונה נשארת כאן 7 ימים, וכל מי שיקרא את הדף יראה אותה.</div>
+            <div class="empty-sub">התגובה הראשונה נשארת כאן {retentionDays.value} ימים, וכל מי שיקרא את הדף יראה אותה.</div>
           </div>
         )}
         {top.map((p, i) => (
@@ -127,7 +127,7 @@ function PostComposer() {
         </div>
       ) : (
         <div class="composer-to">
-          תגובה על: <strong>{scope.value === "page" ? "הדף הזה" : "כל האתר"}</strong> · נשמרת 7 ימים
+          תגובה על: <strong>{scopeNames.value[scope.value]}</strong> · נשמרת {retentionDays.value} ימים
         </div>
       )}
       <div class="composer-row">

@@ -50,6 +50,7 @@ export interface Post {
   expiresAt: number;
   pinned: boolean;
   status: string;
+  link?: string | null;
 }
 export interface ChatMsg {
   id: string;
@@ -89,7 +90,28 @@ export interface Bundle {
   other: { scope: "page" | "site"; presence: number; postCount: number; chat: ChatMsg[] };
   ads: { top: Ad | null; feed: Ad[] };
   me: Me | null;
+  settings?: PublicSettings;
 }
+export interface CenterAd {
+  title: string;
+  body: string;
+  image: string | null;
+  url: string | null;
+  label: string;
+  modes: ("center" | "campus")[];
+}
+export interface PublicSettings {
+  pageThreshold: number;
+  freeMedia: number;
+  retentionDays: number;
+  linkMedia: boolean;
+  centerAd: CenterAd | null;
+}
+export interface DirectoryRoom { roomId: string; kind: string; url?: string; title?: string; n: number }
+export interface Directory { total: number; sites: { site: string; n: number; rooms: DirectoryRoom[] }[] }
+export interface CampusPlace { inst: string; faculty: string; year: number; course?: string }
+export interface CampusDoc { id: string; uid: string; name: string; place: CampusPlace; kind: "article" | "summary"; title: string; size: number; ts: number; file: string; url: string }
+export interface Follow { path: string; title: string; ts: number }
 export interface Product {
   id: string;
   kind: "media" | "pin";
@@ -106,8 +128,16 @@ export const api = {
   morePosts: (roomId: string, before: number, kind = "text") => call<{ posts: Post[]; next: number | null }>(`/v1/room/${roomId}/posts?before=${before}&kind=${kind}`),
   post: (p: PageCtx, scope: string, body: string, parentId?: string | null) =>
     call<{ post: Post }>("/v1/posts", { method: "POST", body: { url: p.url, canonical: p.canonical, title: p.title, optout: p.optout, scope, body, parentId } }),
-  upload: (p: PageCtx, scope: string, file: Blob, caption: string) =>
-    call<{ post: Post; review: boolean; credits: number }>(`/v1/media?${pageQuery(p, { scope, caption })}`, { method: "POST", raw: file }),
+  upload: (p: PageCtx, scope: string, file: Blob, caption: string, link?: string) =>
+    call<{ post: Post; review: boolean; credits: number; free?: boolean }>(`/v1/media?${pageQuery(p, { scope, caption, ...(link ? { link } : {}) })}`, { method: "POST", raw: file }),
+  directory: (campus?: boolean) => call<Directory>(`/v1/directory${campus === undefined ? "" : `?campus=${campus ? 1 : 0}`}`),
+  campusTree: () => call<{ institutions: { id: string; name: string; faculties: string[] }[]; years: number[] }>("/v1/campus/tree"),
+  campusDocs: (pl: CampusPlace) => call<{ docs: CampusDoc[]; title: string; url: string }>(`/v1/campus/docs?${new URLSearchParams({ inst: pl.inst, faculty: pl.faculty, year: String(pl.year), ...(pl.course ? { course: pl.course } : {}) })}`),
+  uploadDoc: (pl: CampusPlace, kind: "article" | "summary", title: string, file: Blob) =>
+    call<{ doc: CampusDoc }>(`/v1/campus/docs?${new URLSearchParams({ inst: pl.inst, faculty: pl.faculty, year: String(pl.year), ...(pl.course ? { course: pl.course } : {}), kind, title })}`, { method: "POST", raw: file }),
+  deleteDoc: (id: string) => call(`/v1/campus/docs/${id}`, { method: "DELETE" }),
+  follows: () => call<{ follows: Follow[] }>("/v1/me/follows"),
+  follow: (path: string, title: string, unfollow = false) => call<{ follows: Follow[] }>("/v1/me/follows", { method: "POST", body: { path, title, unfollow } }),
   deletePost: (roomId: string, postId: string) => call(`/v1/room/${roomId}/posts/${postId}`, { method: "DELETE" }),
   like: (roomId: string, postId: string) => call<{ liked: boolean; likes: number }>(`/v1/room/${roomId}/posts/${postId}/like`, { method: "POST" }),
   report: (roomId: string, itemType: "post" | "chat", itemId: string, reason: string, details?: string) =>

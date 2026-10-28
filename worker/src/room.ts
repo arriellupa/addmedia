@@ -35,6 +35,7 @@ export interface PostRow {
   expires_at: number;
   pin_days: number;
   status: string;
+  link_url?: string | null;
 }
 
 export interface RoomMeta {
@@ -59,6 +60,7 @@ const postOut = (p: PostRow, liked = false) => ({
   expiresAt: p.expires_at,
   pinned: p.pin_days > 0,
   status: p.status,
+  link: p.link_url || null,
 });
 
 export class PageRoom extends DurableObject<Env> {
@@ -87,6 +89,9 @@ export class PageRoom extends DurableObject<Env> {
     this.sql.exec(`CREATE INDEX IF NOT EXISTS posts_time ON posts(created_at)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS posts_exp ON posts(expires_at)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS likes (post_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (post_id, user_id))`);
+    // an image may be a live link (added later; older rooms get the column on first write)
+    const cols = this.sql.exec("PRAGMA table_info(posts)").toArray().map((c: any) => c.name as string);
+    if (!cols.includes("link_url")) this.sql.exec("ALTER TABLE posts ADD COLUMN link_url TEXT");
   }
   private chatTables(): string[] {
     return this.sql
@@ -167,15 +172,15 @@ export class PageRoom extends DurableObject<Env> {
   }
 
   // ---------- writes ----------
-  async addPost(p: { uid: string; name: string; kind: "text" | "image"; body: string; mediaKey?: string | null; parentId?: string | null; meta: RoomMeta; status?: string }) {
+  async addPost(p: { uid: string; name: string; kind: "text" | "image"; body: string; mediaKey?: string | null; parentId?: string | null; meta: RoomMeta; status?: string; link?: string | null; ttlDays?: number }) {
     this.ensurePosts();
     this.setMeta(p.meta);
     const id = sortableId();
     const t = now();
     const status = p.status || "visible";
     this.sql.exec(
-      "INSERT INTO posts (id, created_at, user_id, user_name, kind, body, media_key, parent_id, expires_at, status) VALUES (?,?,?,?,?,?,?,?,?,?)",
-      id, t, p.uid, p.name, p.kind, p.body, p.mediaKey ?? null, p.parentId ?? null, t + POST_TTL, status,
+      "INSERT INTO posts (id, created_at, user_id, user_name, kind, body, media_key, parent_id, expires_at, status, link_url) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+      id, t, p.uid, p.name, p.kind, p.body, p.mediaKey ?? null, p.parentId ?? null, t + (p.ttlDays ? p.ttlDays * DAY : POST_TTL), status, p.link ?? null,
     );
     await this.scheduleAlarm();
     const row = this.sql.exec("SELECT * FROM posts WHERE id=?", id).one() as unknown as PostRow;
@@ -300,6 +305,7 @@ export class PageRoom extends DurableObject<Env> {
     if (metaHeader) {
       try {
         (att as any).meta = JSON.parse(decodeURIComponent(metaHeader));
+        this.setMeta((att as any).meta); // so the Directory can name this room while people are only chatting
       } catch {}
     }
     this.ctx.acceptWebSocket(server);
@@ -384,7 +390,23 @@ export class PageRoom extends DurableObject<Env> {
       this.presenceTimer = null;
       const n = this.presence();
       this.queue({ t: "presence", n, slow: n >= SLOW_AT });
+      this.reportPresence(n);
     }, 1500);
+  }
+  /** tell the Directory who is here, so the media page can list this room; never blocks the room */
+  private reportPresence(n: number) {
+    try {
+      const meta = this.readMeta();
+      if (!meta) return;
+      this.ctx.waitUntil(this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName("global")).report(meta, n).catch(() => {}));
+    } catch {}
+  }
+  private readMeta(): RoomMeta | null {
+    if (!this.tableExists("meta")) return null;
+    const rows = this.sql.exec("SELECT k, v FROM meta").toArray() as any[];
+    const m: any = {};
+    for (const r of rows) m[r.k] = r.v;
+    return m.roomId && m.kind ? (m as RoomMeta) : null;
   }
 
   /** test hook (DEV_MODE only): make everything expire now and run the expiry alarm */

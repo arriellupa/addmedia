@@ -3,7 +3,7 @@ import { API_BASE, ApiError, api, type ChatMsg, type Post, type Product } from "
 import { ago, count, date, left, price } from "../fmt";
 import { host } from "../host";
 import { Ban, Check, Copy, Flag, Heart, ImageI, LogOut, Mail, Pin, Shield, Sparkles, Trash } from "../icons";
-import { blockUser, blocked, bundle, me, page, posts, media, report, roomId, say, scope, sheet, signOut, signedIn, toggleLike, unblockUser, uploadImage } from "../state";
+import { blockUser, blocked, bundle, me, page, posts, media, report, retentionDays, roomId, say, scope, sheet, signOut, signedIn, toggleLike, unblockUser, uploadImage } from "../state";
 import { Avatar, SheetFrame } from "./Bits";
 import { mediaUrl } from "./Media";
 
@@ -342,6 +342,7 @@ function Create({ goStore }: { goStore: () => void }) {
     setPreview(URL.createObjectURL(f));
   };
   const b = bundle.value;
+  const free = b?.settings?.freeMedia ?? 0;
   return (
     <div class="create">
       <div class="target">
@@ -369,10 +370,10 @@ function Create({ goStore }: { goStore: () => void }) {
         </label>
       )}
       <div class="summary">
-        <span>פרסום ל-7 ימים</span>
-        <span>{u.credits.media > 0 ? <>מנכה העלאה אחת מתוך <span class="num">{u.credits.media}</span></> : "צריך חבילת העלאות"}</span>
+        <span>פרסום ל-{retentionDays.value} ימים</span>
+        <span>{u.credits.media > 0 ? <>מנכה העלאה אחת מתוך <span class="num">{u.credits.media}</span></> : free > 0 ? `${free === 1 ? "הראשונה" : `${free} הראשונות`} חינם` : "צריך חבילת העלאות"}</span>
       </div>
-      {u.credits.media > 0 ? (
+      {u.credits.media > 0 || free > 0 ? (
         <button
           class="btn btn-primary btn-block"
           disabled={!file || busy}

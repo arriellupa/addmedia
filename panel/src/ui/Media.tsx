@@ -1,6 +1,6 @@
 import { API_BASE } from "../api";
 import { Pin, Plus } from "../icons";
-import { canPost, me, needAuth, sheet, visibleMedia } from "../state";
+import { canPost, me, needAuth, retentionDays, sheet, visibleMedia } from "../state";
 
 export const mediaUrl = (path: string) => API_BASE + path;
 
@@ -33,7 +33,7 @@ export function MediaView() {
       {!items.length && (
         <div class="empty">
           <div class="empty-title">עוד אין כאן תמונות</div>
-          <div class="empty-sub">תמונה מהשטח, צילום מסך או גרף — הן מוצגות לכל מי שקורא את הדף, 7 ימים.</div>
+          <div class="empty-sub">תמונה מהשטח, צילום מסך או גרף — הן מוצגות לכל מי שקורא את הדף, {retentionDays.value} ימים.</div>
         </div>
       )}
     </section>

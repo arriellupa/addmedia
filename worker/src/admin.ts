@@ -1,5 +1,7 @@
 // Moderation & operations API for the operator. Protected by ADMIN_TOKEN (Bearer).
+import { deleteDoc } from "./campus";
 import { invalidateTerms } from "./moderation";
+import { getSettings, putSettings } from "./settings";
 import { Env, clampStr, fail, json, now, randomId, readJson } from "./util";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
@@ -19,6 +21,22 @@ export async function handleAdmin(req: Request, env: Env, url: URL): Promise<Res
   const parts = url.pathname.replace(/^\/v1\/admin\/?/, "").split("/").filter(Boolean);
   const [res, id] = parts;
   const m = req.method;
+
+  if (res === "settings" && m === "GET") return json({ settings: await getSettings(env) });
+  if (res === "settings" && m === "POST") {
+    const b = await readJson(req);
+    const s = await putSettings(env, b);
+    await log(env, { action: "settings", target_type: "settings", target_id: "main", reason: Object.keys(b).join(",") });
+    return json({ settings: s });
+  }
+  if (res === "docs" && m === "GET") {
+    const rows = (await env.DB.prepare("SELECT id, user_id, user_name, inst, faculty, year, course, kind, title, size, created_at, status FROM campus_docs ORDER BY created_at DESC LIMIT 100").all<any>()).results || [];
+    return json({ docs: rows });
+  }
+  if (res === "docs" && m === "DELETE" && id) {
+    await log(env, { action: "remove_doc", target_type: "doc", target_id: id });
+    return await deleteDoc(env, id, null, true);
+  }
 
   if (res === "stats") {
     const [u, r, a, l] = await Promise.all([

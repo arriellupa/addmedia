@@ -6,9 +6,15 @@
   "routes": [{ "pattern": "addmedia.noaplate.com", "custom_domain": true }],
   "assets": { "directory": "./public", "binding": "ASSETS" },
   "durable_objects": {
-    "bindings": [{ "name": "ROOMS", "class_name": "PageRoom" }]
+    "bindings": [
+      { "name": "ROOMS", "class_name": "PageRoom" },
+      { "name": "DIRECTORY", "class_name": "Directory" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PageRoom"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PageRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["Directory"] }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

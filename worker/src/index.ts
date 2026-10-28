@@ -2,15 +2,18 @@
 import { handleAdmin, modLog } from "./admin";
 import { User, getUser, logout, publicUser, startAuth, tokenFrom, verifyAuth } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
+import { CAMPUS_HOST, campusTree, deleteDoc, docFile, follow, listDocs, listFollows, placeOf, placeTitle, placeUrl, uploadDoc } from "./campus";
 import { debugPage, debugVia } from "./debug";
+import { getSettings, publicSettings } from "./settings";
 import { checkImage, checkPost, checkText } from "./moderation";
 import type { RoomMeta } from "./room";
 import { CORS, DAY, Env, clampStr, fail, idSecret, isTrue, json, now, randomId, readJson } from "./util";
 
 export { PageRoom } from "./room";
+export { Directory } from "./directory";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-28.1";
+const VERSION = "2026-10-28.2";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 
@@ -59,18 +62,38 @@ interface Resolved {
 async function resolve(env: Env, p: { url?: string | null; canonical?: string | null; title?: string | null; scope?: string | null; optout?: string | null }): Promise<Resolved | Response> {
   const c = canonicalize(String(p.url || ""), p.canonical);
   if (!c) return fail(400, "bad_url", "כתובת לא נתמכת.");
-  const { pageId, siteId } = await roomIds(idSecret(env), c);
+  let { pageId, siteId } = await roomIds(idSecret(env), c);
   const scope = p.scope === "site" ? "site" : "page";
   const rule = await rulesFor(env, c);
   const oo = String(p.optout || "");
+  // campus places: the "site" of a course or an article page is its faculty/year hub, and the Directory groups them by institution
+  let campus: { domain: string; siteUrl: string; siteTitle: string; pageTitle?: string } | null = null;
+  if (c.host === CAMPUS_HOST) {
+    const seg = new URL(c.canonical).pathname.split("/").filter(Boolean).map((x) => {
+      try {
+        return decodeURIComponent(x);
+      } catch {
+        return x;
+      }
+    });
+    const place = seg[0] === "doc" ? null : placeOf({ inst: seg[0], faculty: seg[1], year: seg[2], course: seg[3] });
+    if (place) {
+      const hub = { inst: place.inst, faculty: place.faculty, year: place.year };
+      const hubCanon = canonicalize(placeUrl(hub));
+      if (hubCanon) siteId = (await roomIds(idSecret(env), hubCanon)).pageId;
+      campus = { domain: "campus." + place.inst, siteUrl: placeUrl(hub), siteTitle: placeTitle(hub), pageTitle: placeTitle(place) };
+    } else if (seg[0] === "doc") {
+      campus = { domain: "campus.docs", siteUrl: "https://" + CAMPUS_HOST + "/doc", siteTitle: "מאמרים וסיכומים" };
+    }
+  }
   const roomId = scope === "site" ? siteId : pageId;
   return {
     c, pageId, siteId, roomId, scope, rule,
     optout: { comments: oo.includes("nocomments"), ads: oo.includes("noads") },
     sensitive: isSensitive(c),
     meta: scope === "site"
-      ? { roomId, kind: "site", url: "https://" + c.site, domain: c.site, title: c.site }
-      : { roomId, kind: "page", url: c.canonical.slice(0, 500), domain: c.site, title: clampStr(p.title, 200) || undefined },
+      ? { roomId, kind: "site", url: campus ? campus.siteUrl : "https://" + c.site, domain: campus ? campus.domain : c.site, title: campus ? campus.siteTitle : c.site }
+      : { roomId, kind: "page", url: c.canonical.slice(0, 500), domain: campus ? campus.domain : c.site, title: clampStr(p.title, 200) || campus?.pageTitle || undefined },
   };
 }
 
@@ -129,8 +152,10 @@ async function panel(req: Request, env: Env, url: URL, ctx: ExecutionContext): P
     room(env, other).bundle({ limit: 1 }),
     adsFor(env, r),
   ]);
+  const settings = publicSettings(await getSettings(env));
   const body = {
     ...base,
+    settings,
     rules: { comments: commentsAllowed(r), ads: !!(ads.top || ads.feed.length) },
     room: main,
     other: { scope: r.scope === "page" ? "site" : "page", presence: side.presence, postCount: side.postCount, chat: side.chat.slice(-3) },
@@ -177,7 +202,7 @@ async function createPost(req: Request, env: Env, url: URL): Promise<Response> {
     await modLog(env, { actor: "auto", action: "block_text", target_type: "user", target_id: u.id, room_id: r.roomId, reason: v.code });
     return fail(422, v.code, v.message);
   }
-  const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "text", body: text, parentId: clampStr(b.parentId, 40) || null, meta: r.meta });
+  const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "text", body: text, parentId: clampStr(b.parentId, 40) || null, meta: r.meta, ttlDays: (await getSettings(env)).retentionDays });
   await env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at) VALUES (?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "text", now(), post.expiresAt).run();
   return json({ post });
 }
@@ -196,7 +221,24 @@ async function uploadMedia(req: Request, env: Env, url: URL): Promise<Response> 
   const r = await resolve(env, { url: url.searchParams.get("url"), canonical: url.searchParams.get("canonical"), title: url.searchParams.get("title"), scope: url.searchParams.get("scope") });
   if (r instanceof Response) return r;
   if (!commentsAllowed(r)) return fail(403, "disabled", "פרסום כבוי בדף הזה.");
-  if (u.credits_media < 1) return fail(402, "no_credits", "אין לך יתרת העלאות. אפשר לרכוש חבילה בחלון המדיה שלי.");
+  const settings = await getSettings(env);
+  // the first N images are free (operator setting); after that, credits
+  const used = await env.DB.prepare("SELECT COUNT(*) n FROM content_index WHERE user_id=? AND kind='image'").bind(u.id).first<{ n: number }>();
+  const free = (used?.n ?? 0) < settings.freeMedia;
+  let link: string | null = null;
+  const rawLink = clampStr(url.searchParams.get("link"), 1000);
+  if (rawLink) {
+    if (!settings.linkMedia) return fail(400, "no_links", "תמונות-קישור כבויות כרגע.");
+    try {
+      const lu = new URL(rawLink);
+      if (lu.protocol !== "https:" && lu.protocol !== "http:") throw 0;
+      if (isSensitive(canonicalize(lu.href) || ({} as any))) throw 0;
+      link = lu.href;
+    } catch {
+      return fail(400, "bad_link", "כתובת הקישור לא תקינה.");
+    }
+  }
+  if (!free && u.credits_media < 1) return fail(402, "no_credits", "ניצלת את ההעלאות החינמיות. אפשר לרכוש חבילה בחלון המדיה שלי.");
   const len = Number(req.headers.get("Content-Length") || 0);
   if (len > 1_100_000) return fail(413, "too_big", "התמונה גדולה מדי (עד 1MB אחרי דחיסה).");
   const bytes = await req.arrayBuffer();
@@ -220,14 +262,16 @@ async function uploadMedia(req: Request, env: Env, url: URL): Promise<Response> 
   const ext = type.split("/")[1];
   const key = `${r.roomId}/${randomId(12)}.${ext}`;
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: type, cacheControl: "public, max-age=31536000, immutable" }, customMetadata: { uid: u.id } });
-  const spent = await env.DB.prepare("UPDATE users SET credits_media=credits_media-1 WHERE id=? AND credits_media>=1").bind(u.id).run();
-  if (!spent.meta.changes) {
-    await env.MEDIA.delete(key);
-    return fail(402, "no_credits", "אין לך יתרת העלאות.");
+  if (!free) {
+    const spent = await env.DB.prepare("UPDATE users SET credits_media=credits_media-1 WHERE id=? AND credits_media>=1").bind(u.id).run();
+    if (!spent.meta.changes) {
+      await env.MEDIA.delete(key);
+      return fail(402, "no_credits", "אין לך יתרת העלאות.");
+    }
   }
-  const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "image", body: caption, mediaKey: key, meta: r.meta, status: review ? "review" : "visible" });
+  const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "image", body: caption, mediaKey: key, meta: r.meta, status: review ? "review" : "visible", link, ttlDays: settings.retentionDays });
   await env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at) VALUES (?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "image", now(), post.expiresAt).run();
-  return json({ post, review, credits: u.credits_media - 1 });
+  return json({ post, review, credits: free ? u.credits_media : u.credits_media - 1, free });
 }
 
 const REASONS = new Set(["spam", "harassment", "hate", "violence", "sexual", "intimate", "minor", "privacy", "copyright", "other"]);
@@ -389,6 +433,32 @@ export default {
     try {
       if (p === "/v1/health") return json({ ok: true, at: now(), v: VERSION });
       if (p === "/v1/debug") return await debugPage(req, env, url);
+      if (p === "/v1/directory") {
+        const campus = url.searchParams.get("campus");
+        const d = env.DIRECTORY.get(env.DIRECTORY.idFromName("global"));
+        return json(await d.list({ campus: campus === null ? undefined : campus === "1" }), 200, { "Cache-Control": "public, max-age=0, s-maxage=5" });
+      }
+      if (p === "/v1/campus/tree") return json(campusTree(), 200, { "Cache-Control": "public, max-age=3600" });
+      if (p === "/v1/campus/docs" && req.method === "GET") {
+        const place = placeOf({ inst: url.searchParams.get("inst"), faculty: url.searchParams.get("faculty"), year: url.searchParams.get("year"), course: url.searchParams.get("course") });
+        if (!place) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
+        return json({ docs: await listDocs(env, place, url.searchParams.get("kind")), place, title: placeTitle(place), url: placeUrl(place) });
+      }
+      if (p === "/v1/campus/docs" && req.method === "POST") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        if (!u.terms_accepted_at) return fail(403, "terms", "יש לאשר את כללי הקהילה לפני הפרסום הראשון.");
+        return await uploadDoc(req, env, url, u);
+      }
+      const dm = p.match(/^\/v1\/campus\/docs\/([A-Za-z0-9_-]{4,40})(\/file)?$/);
+      if (dm && dm[2]) return await docFile(env, dm[1]);
+      if (dm && req.method === "DELETE") return await deleteDoc(env, dm[1], await getUser(env, tokenFrom(req, url)));
+      if (p === "/v1/me/follows" && req.method === "GET") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return json({ follows: await listFollows(env, u.id) });
+      }
+      if (p === "/v1/me/follows" && req.method === "POST") return await follow(req, env, url);
       if (p === "/v1/debug/via") return await debugVia(req, env, url);
       if (p === "/v1/panel" && req.method === "GET") return await panel(req, env, url, ctx);
       if (p === "/v1/ws") return await websocket(req, env, url);
@@ -421,6 +491,12 @@ export default {
       if (rm) return await roomAction(req, env, url, rm[1], rm[2].split("/"));
       if (p.startsWith("/m/")) return await serveMedia(env, decodeURIComponent(p.slice(3)));
       if (p.startsWith("/v1/")) return fail(404, "not_found", "נתיב לא קיים.");
+      // the media page: one app at /media/, with stable addresses for campus pages and sites (/media/campus/…, /media/site/…)
+      if (req.method === "GET" && (p === "/media" || p.startsWith("/media/"))) {
+        if (p === "/media") return Response.redirect(url.origin + "/media/" + url.search, 302);
+        const r = await env.ASSETS.fetch(new Request(url.origin + "/panel/media.html", { headers: req.headers }));
+        return new Response(r.body, { status: r.status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
+      }
       return env.ASSETS.fetch(req);
     } catch (e: any) {
       console.error("unhandled", e?.stack || e);
