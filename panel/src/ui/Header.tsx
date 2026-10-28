@@ -4,6 +4,7 @@ import { host } from "../host";
 import { External, FileI, Globe, SideI, SplitI } from "../icons";
 import { bundle, me, page, presence, scope, setScope, sheet, status, tab, visibleChat, type Tab } from "../state";
 import { Avatar, LiveDot } from "./Bits";
+import { GoBar } from "./GoBar";
 
 /** The Clip — signature tab on the panel's top edge: live dot, who's here, recent faces. */
 export function Clip() {
@@ -94,6 +95,7 @@ export function Header() {
             </button>
           </div>
         </div>
+        {host.kind === "web" && <GoBar compact />}
         {b && !b.disabled && (
           <div class="scope" role="tablist" aria-label="היקף השיחה">
             <button role="tab" aria-selected={scope.value === "page"} class={scope.value === "page" ? "on" : ""} onClick={() => setScope("page")}>

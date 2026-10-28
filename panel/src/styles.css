@@ -365,6 +365,15 @@
   .state-ic { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--c-surface); box-shadow: var(--shadow-1); color: var(--c-text-2); margin-bottom: 6px; }
   .brand-mark { width: 64px; height: 64px; margin-bottom: 8px; }
   .demo-url { width: 100%; max-width: 440px; margin-top: 14px; }
+  /* the address-and-search bar (web only) */
+  .gobar { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; }
+  .gobar .input { padding-inline-start: 36px; }
+  .gobar.compact { margin-top: 8px; }
+  .gobar.compact .input { padding-block: 6px; min-height: 36px; font-size: 15px; border-radius: var(--r-lg); }
+  .gobar-ic { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--c-text-3); display: grid; pointer-events: none; }
+  .gobar.compact .gobar-ic { top: 18px; }
+  .gobar-note { flex-basis: 100%; font-size: var(--fs-caption); color: var(--c-text-2); line-height: 1.5; margin-top: -2px; }
+  .gobar.compact .btn { flex: none; }
   .intro { margin: 0 var(--gutter) 10px; padding: 12px 14px; border-radius: var(--r-lg); background: var(--c-surface); box-shadow: var(--shadow-1); display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; }
   .intro-title { font-family: var(--font-display); font-size: 17px; line-height: 24px; }
   .intro-sub { grid-column: 1; font-size: var(--fs-caption); line-height: 1.55; color: var(--c-text-2); }

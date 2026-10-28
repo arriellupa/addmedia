@@ -1,6 +1,7 @@
 import { effect } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import { findUrl, host } from "./host";
+import { GoBar } from "./ui/GoBar";
 import { Copy, Lock, Refresh } from "./icons";
 import { bundle, load, loadError, loading, page, presence, setPage, tab } from "./state";
 import { BrandMark, Skeleton, Sponsored, Toast } from "./ui/Bits";
@@ -93,18 +94,14 @@ function Disabled({ reason }: { reason: string }) {
 }
 
 function NoPage() {
-  const [url, setUrl] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const go = (raw: string) => {
-    const u = findUrl(raw) || (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw.trim()) ? "https://" + raw.trim() : null);
-    if (!u) return setErr("לא נמצא קישור. העתיקו את כתובת הכתבה ונסו שוב.");
-    setErr(null);
-    history.replaceState(null, "", `${location.pathname}?url=${encodeURIComponent(u)}`);
-    setPage({ url: u });
-  };
   const paste = async () => {
     try {
-      go(await navigator.clipboard.readText());
+      const t = await navigator.clipboard.readText();
+      if (!findUrl(t)) return setErr("בלוח אין קישור. העתיקו את כתובת הכתבה ונסו שוב.");
+      setErr(null);
+      history.replaceState(null, "", `${location.pathname}?url=${encodeURIComponent(findUrl(t)!)}`);
+      setPage({ url: findUrl(t)! });
     } catch {
       setErr("הדפדפן לא איפשר לקרוא מהלוח. הדביקו את הקישור בשדה.");
     }
@@ -121,22 +118,15 @@ function NoPage() {
     <div class="state">
       <BrandMark />
       <div class="empty-title">על איזה דף מדברים?</div>
-      <div class="empty-sub">העתיקו את הקישור לכתבה, לסרטון או לכל דף — ותראו מי עוד קורא אותו עכשיו.</div>
+      <div class="empty-sub">הקלידו כתובת או חפשו בגוגל: הדף נפתח בחלון קריאה לצד AddMedia, והשיחה עליו כאן.</div>
+      <div class="demo-url">
+        <GoBar autoFocus />
+      </div>
       {"clipboard" in navigator && "readText" in (navigator.clipboard || {}) && (
-        <button class="btn btn-primary btn-lg paste-btn" onClick={paste}>
+        <button class="btn btn-secondary paste-btn" onClick={paste}>
           <Copy size={18} /> הדבקת קישור מהלוח
         </button>
       )}
-      <form
-        class="row demo-url"
-        onSubmit={(e) => {
-          e.preventDefault();
-          go(url);
-        }}
-      >
-        <input class="input" dir="ltr" inputMode="url" placeholder="https://www.ynet.co.il/…" value={url} onInput={(e) => setUrl(e.currentTarget.value)} />
-        <button class="btn btn-secondary btn-sm">פתיחה</button>
-      </form>
       {err && <div class="form-err">{err}</div>}
       <a class="fine" href="/mobile/">איך מוסיפים כפתור AddMedia לדפדפן בטלפון</a>
     </div>

@@ -56,3 +56,4 @@ export const Ban = (p: P) => I(<><circle cx="12" cy="12" r="10" /><path d="m4.9 
 export const Refresh = (p: P) => I(<><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></>, p);
 export const Wifi = (p: P) => I(<><path d="M12 20h.01" /><path d="M2 8.8a15 15 0 0 1 20 0" /><path d="M5 12.9a10 10 0 0 1 14 0" /><path d="M8.5 16.4a5 5 0 0 1 7 0" /></>, p);
 export const External = (p: P) => I(<><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></>, p, true);
+export const Search = (p: P) => I(<><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>, p);
