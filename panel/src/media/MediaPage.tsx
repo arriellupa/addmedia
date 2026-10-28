@@ -243,7 +243,7 @@ function RoomCard() {
       {b && !b.disabled && (
         <div class="scope" role="tablist" aria-label="היקף השיחה">
           <button role="tab" aria-selected={scope.value === "page"} class={scope.value === "page" ? "on" : ""} onClick={() => setScope("page")}>
-            <FileI size={15} /> {mode.value === "campus" ? "הקורס" : "הדף הזה"}
+            <FileI size={15} /> {mode.value === "campus" ? "השיעור" : "הדף הזה"}
           </button>
           <button role="tab" aria-selected={scope.value === "site"} class={scope.value === "site" ? "on" : ""} onClick={() => setScope("site")}>
             <Globe size={15} /> {mode.value === "campus" ? "כל השנה" : <>כל <bdi dir="ltr">{b.page.site}</bdi></>}
@@ -335,7 +335,7 @@ function PlaceTile() {
         {b && !b.disabled && pl.course && (
           <div class="scope" role="tablist" aria-label="היקף השיחה">
             <button role="tab" aria-selected={scope.value === "page"} class={scope.value === "page" ? "on" : ""} onClick={() => setScope("page")}>
-              <Book size={15} /> הקורס
+              <Book size={15} /> השיעור
             </button>
             <button role="tab" aria-selected={scope.value === "site"} class={scope.value === "site" ? "on" : ""} onClick={() => setScope("site")}>
               <Cap size={15} /> כל שנה {YEAR_HE[pl.year]}
@@ -377,9 +377,9 @@ function CourseEntry() {
   };
   return (
     <div class="course-entry">
-      <input class="input" dir="auto" value={v} placeholder={pl.course ? "קורס אחר…" : "שם הקורס (למשל: דיני חוזים) — וחדר לקורס נפתח"} maxLength={60} onInput={(e) => setV(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
+      <input class="input" dir="auto" value={v} placeholder={pl.course ? "נושא שיעור או קורס אחר…" : "נושא השיעור או הקורס (למשל: דיני חוזים) — וחדר נפתח"} maxLength={60} onInput={(e) => setV(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
       <button class="btn btn-secondary btn-sm" onClick={go} disabled={slug(v).length < 2}>
-        לקורס
+        פתיחה
       </button>
     </div>
   );

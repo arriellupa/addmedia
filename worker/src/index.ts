@@ -60,7 +60,12 @@ interface Resolved {
 }
 
 async function resolve(env: Env, p: { url?: string | null; canonical?: string | null; title?: string | null; scope?: string | null; optout?: string | null }): Promise<Resolved | Response> {
-  const c = canonicalize(String(p.url || ""), p.canonical);
+  // the campus pages of the media page are campus rooms: the extension beside https://addmedia.noaplate.com/media/campus/…
+  // shows the same chat and talkbacks as the page itself
+  let raw = String(p.url || "");
+  const mp = raw.match(/^https?:\/\/addmedia\.noaplate\.com\/media\/campus\/([^/?#]+)\/([^/?#]+)\/([1-6])(?:\/([^/?#]+))?\/?(?:[?#].*)?$/);
+  if (mp) raw = `https://${CAMPUS_HOST}/${mp[1]}/${mp[2]}/${mp[3]}${mp[4] ? "/" + mp[4] : ""}`;
+  const c = canonicalize(raw, mp ? null : p.canonical);
   if (!c) return fail(400, "bad_url", "כתובת לא נתמכת.");
   let { pageId, siteId } = await roomIds(idSecret(env), c);
   const scope = p.scope === "site" ? "site" : "page";

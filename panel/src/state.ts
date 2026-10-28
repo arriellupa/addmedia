@@ -37,7 +37,7 @@ export const replyTo = signal<Post | null>(null);
 export const sideHint = computed(() => bundle.value?.other ?? null);
 const isCampus = () => !!page.value?.url.startsWith("https://campus.addmedia.noaplate.com/");
 /** the names of the two scopes, as the composers say them */
-export const scopeNames = computed(() => (isCampus() ? { page: "הקורס", site: "כל השנה" } : { page: "הדף הזה", site: "כל האתר" }));
+export const scopeNames = computed(() => (isCampus() ? { page: "השיעור", site: "כל השנה" } : { page: "הדף הזה", site: "כל האתר" }));
 export const retentionDays = computed(() => bundle.value?.settings?.retentionDays ?? 7);
 
 export const roomId = computed(() => bundle.value?.roomId ?? "");

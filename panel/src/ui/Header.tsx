@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { count } from "../fmt";
 import { host } from "../host";
-import { External, FileI, Globe, SideI, SplitI } from "../icons";
+import { Cap, External, FileI, Globe, SideI, SplitI } from "../icons";
+import { API_BASE } from "../api";
+
+/** the campus page: the last faculty the reader opened there, or the picker */
+async function lastPlace(): Promise<string> {
+  const v = await host.get("am_last_place");
+  try {
+    const p = JSON.parse(v || "");
+    if (p?.inst) return `/media/campus/${p.inst}/${p.faculty}/${p.year}${p.course ? "/" + p.course : ""}`;
+  } catch {}
+  return "/media/campus";
+}
 import { bundle, me, page, presence, scope, setScope, sheet, status, tab, visibleChat, type Tab } from "../state";
 import { Avatar, LiveDot } from "./Bits";
 import { GoBar } from "./GoBar";
@@ -78,6 +89,11 @@ export function Header() {
               <a class="icon-btn" href={p.url} target="_blank" rel="noopener" aria-label="פתיחת הכתבה" title="פתיחת הכתבה">
                 <External />
               </a>
+            )}
+            {host.kind === "extension" && (
+              <button class="icon-btn" aria-label="הקמפוס: מאמרים וסיכומים לפי פקולטה ושנה" title="הקמפוס" onClick={async () => host.open((API_BASE || "https://addmedia.noaplate.com") + (await lastPlace()))}>
+                <Cap />
+              </button>
             )}
             {host.kind === "extension" && host.setLayout && (
               <button

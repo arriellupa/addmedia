@@ -15,11 +15,21 @@ document.documentElement.dataset.theme = "dark";
 async function start() {
   await initAuth();
   const loc = parseLocation();
-  if (loc.mode === "campus") {
+  // on a phone the page is the students' mirror: the campus, by faculty, year and lesson
+  const phone = matchMedia("(max-width: 640px)").matches;
+  if (loc.mode === "campus" || (!loc.url && phone)) {
     mode.value = "campus";
     loadTree();
+    let saved: any = null;
+    try {
+      saved = JSON.parse(localStorage.getItem("am_last_place") || "null");
+    } catch {}
     if (loc.place) openPlace(loc.place, true);
-    else picker.value = true;
+    else if (saved?.inst) openPlace(saved, true);
+    else {
+      history.replaceState(null, "", "/media/campus");
+      picker.value = true;
+    }
   } else if (loc.url) {
     setPage({ url: loc.url, title: loc.title || null });
     if (loc.url.match(/^https?:\/\/[^/]+\/?$/)) setScope("site");

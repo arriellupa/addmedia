@@ -153,9 +153,12 @@
     .mc-brand-sub { display: none; }
     .mc-go { order: 10; flex-basis: 100%; max-width: none; }
     .mc-mode span { display: none; }
+    .mc-crumb { flex: none; font-size: 0; gap: 0; padding-inline: 10px; }
     .mc-mode { padding-inline: 10px; }
     .mc-grid { padding: 12px; gap: 12px; grid-template-columns: 1fr; grid-template-rows: auto 480px auto 520px 200px; grid-template-areas: "center" "chat" "radar" "talk" "media"; min-height: 0; }
-    .mode-campus .mc-grid { grid-template-rows: auto auto 480px auto 520px 200px; grid-template-areas: "center" "radar" "chat" "radar2" "talk" "media"; }
+    /* the phone is the students' mirror: the place, the documents and the images first; the chat and the talkbacks after */
+    .mode-campus .mc-grid { grid-template-rows: auto auto 220px auto 480px auto; grid-template-areas: "center" "radar" "media" "talk" "chat" "radar2"; }
+    .mode-campus .t-talk { min-height: 320px; }
     .t-radar, .t-radar2 { max-height: 360px; }
     .t-chat { max-height: none; }
     .center-welcome { padding: 20px 16px; }
