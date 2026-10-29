@@ -9,6 +9,14 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/site.css">
+<style>
+.doors{margin:36px 0 8px}.doors h2{margin:0 0 14px}.doors-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.door{display:flex;flex-direction:column;gap:8px;background:var(--surface,#fff);border:1px solid var(--border,#e3e0e8);border-radius:20px;padding:20px 22px;color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+.door:hover{border-color:var(--accent,#a3195b);transform:translateY(-2px)}
+.door-ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--accent,#a3195b);color:#fff}
+.door b{font-size:22px}.door span:not(.door-ic){line-height:1.55;color:var(--t2,#55505e)}.door em{font-style:normal;font-weight:700;font-size:13px;color:var(--accent,#a3195b)}
+@media (max-width:720px){.doors-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <header class="top"><div class="top-in">
@@ -27,8 +35,8 @@
   <section style="display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-top:20px" class="hero">
     <div>
       <div style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--live);margin-bottom:14px"><span style="width:8px;height:8px;border-radius:50%;background:var(--live)"></span> חי עכשיו על אלפי דפים</div>
-      <h1>כל דף באינטרנט<br>הוא חדר.</h1>
-      <p class="lead">AddMedia מוסיפה לכל כתבה, סרטון או דף שיחה חיה, תגובות ומדיה — עם כל מי שקורא אותו בדיוק עכשיו. האתר נשאר כמו שהוא; השיחה צמודה אליו.</p>
+      <h1>מידע עשיר על כל אתר,<br>בזמן הגלישה.</h1>
+      <p class="lead">תוסף ל-Chrome שמוסיף לכל אתר, בזמן שאתם גולשים בו, שכבה שלא הייתה בו: מאמרים וסיכומי שיעור של סטודנטים, ובלחיצה על אייקון — דף מדיה כללי עם תמונות, צ׳אט בלייב וטוקבקים. האתר נשאר כמו שהוא; המידע צמוד אליו.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:24px">
         <a class="btn btn-primary" href="/get/">הוספה ל-Chrome</a>
         <a class="btn btn-secondary" href="/mobile/">בטלפון</a>
@@ -37,6 +45,24 @@
       <p style="font-size:13px;color:var(--t3);margin-top:14px">טקסט וצ׳אט בחינם. תמונות והצמדה ארוכה — בתשלום קטן.</p>
     </div>
     <div><img src="/hero.png" alt="דף כתבה למעלה, ומתחתיו השיחה החיה של AddMedia" style="width:100%;max-width:440px;display:block;margin:0 auto"></div>
+  </section>
+
+  <section class="doors" aria-labelledby="doors-h">
+    <h2 id="doors-h">שתי דלתות</h2>
+    <div class="doors-grid">
+      <a class="door" href="/media/campus">
+        <span class="door-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+        <b>סטודנט</b>
+        <span>הדירקטורי של הסטודנט, לא משנה היכן גולשים: מוסד › פקולטה › שנה › קורס › מרצה › שיעור. סיכומים ומאמרים במילותיהם של סטודנטים, שיחה חיה של המחזור, לוח סמסטר, ו«הסרה לפי דרישה» על כל פריט.</span>
+        <em>14 ימי ניסיון, אחר כך בתשלום</em>
+      </a>
+      <a class="door" href="/media/">
+        <span class="door-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></svg></span>
+        <b>גלישה רגילה</b>
+        <span>המדיה צמודה לאתר שבו אתם נמצאים: לכל דף חדר עם שיחה חיה, טוקבקים ותמונות של מי שקורא אותו עכשיו, ועוד חדר לכל האתר. ב«הוסף מידע» מצמידים לדף חומרים שכבר העליתם, בסימון פשוט.</span>
+        <em>טקסט וצ׳אט בחינם</em>
+      </a>
+    </div>
   </section>
   <div class="grid3">
     <div class="card"><h3>שיחה חיה</h3><p>מדברים עם מי שקורא איתכם את אותו דף — עכשיו. אין אף אחד בדף? עוברים בלחיצה לשיחה על האתר כולו.</p></div>
