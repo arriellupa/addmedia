@@ -24,9 +24,9 @@
     --cp-paper: #ffffff; --cp-ink: #1c1a22; --cp-mark: rgb(242 200 90 / 0.5);
     --st-warm: #f07a2a; --st-warm-tint: #fff1e8;
   }
-  html, body { height: auto; min-height: 100%; }
-  body { background: var(--c-panel); overflow-y: auto; }
-  #app { height: auto; min-height: 100vh; }
+  :root[data-app], :root[data-app] body { height: auto; min-height: 100%; }
+  :root[data-app] body { background: var(--c-panel); overflow-y: auto; }
+  :root[data-app] #app { height: auto; min-height: 100vh; }
   .st.mc { background: var(--c-panel); min-height: 100vh; display: flex; flex-direction: column; }
   .st .doc-kind.summary { background: #e3f4ea; color: #1f6b43; }
   .st .cp-card.k-summary { border-inline-start-color: #3fb27a; }

@@ -28,9 +28,9 @@
     --cp-trust: #1f7a5f; --cp-trust-tint: rgb(31 138 108 / 0.1);
     --cp-paper: #ffffff; --cp-ink: #14142b; --cp-mark: rgb(255 214 90 / 0.55);
   }
-  html, body { height: auto; min-height: 100%; }
-  body { background: var(--c-panel); overflow-y: auto; }
-  #app { height: auto; min-height: 100vh; }
+  :root[data-app], :root[data-app] body { height: auto; min-height: 100%; }
+  :root[data-app] body { background: var(--c-panel); overflow-y: auto; }
+  :root[data-app] #app { height: auto; min-height: 100vh; }
   .mc { height: auto; min-height: 100vh; overflow: visible; display: block; background: radial-gradient(1200px 500px at 50% -10%, #e4e6ff 0%, var(--c-panel) 60%); }
 
   /* top bar */

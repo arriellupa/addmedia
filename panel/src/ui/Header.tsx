@@ -84,18 +84,16 @@ export function Header() {
       <div class="head-in">
         <div class="head-row">
           <div class="page-id">
-            <span class="fav-frame" aria-hidden="true">
-              {p?.favicon && iconOk ? <img class="fav" src={p.favicon} alt="" width={18} height={18} onError={() => setIconOk(false)} /> : <Globe size={16} />}
+            <span class="brand-sq" aria-hidden="true">
+              A
             </span>
-            <div class="page-text">
-              <div class="page-title" dir="auto" title={title}>
-                {title}
-              </div>
-              {b && (
-                <bdi class="page-domain" dir="ltr">
-                  {b.page.host}
-                </bdi>
-              )}
+            <div class="url-pill" title={title}>
+              <span class="url-fav" aria-hidden="true">
+                {p?.favicon && iconOk ? <img class="fav" src={p.favicon} alt="" width={16} height={16} onError={() => setIconOk(false)} /> : <Globe size={14} />}
+              </span>
+              <bdi class="url-text" dir="ltr">
+                {b?.page.display || title}
+              </bdi>
             </div>
           </div>
           <div class="head-actions">
@@ -165,9 +163,9 @@ export function Header() {
 export function Tabs() {
   const b = bundle.value;
   const items: { id: Tab; label: string; n?: number; live?: boolean }[] = [
-    { id: "chat", label: "שיחה חיה", live: presence.value > 1 },
-    { id: "comments", label: "תגובות", n: b?.room.postCount },
-    { id: "media", label: "מדיה", n: b?.room.mediaCount },
+    { id: "chat", label: "צ'אט", live: presence.value > 1 },
+    { id: "comments", label: "טוקבקים", n: b?.room.postCount },
+    { id: "media", label: "תמונות", n: b?.room.mediaCount },
   ];
   const idx = items.findIndex((i) => i.id === tab.value);
   return (

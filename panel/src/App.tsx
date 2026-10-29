@@ -37,11 +37,13 @@ export function App() {
             <Skeleton />
           ) : b ? (
             <>
-              <Intro />
-              <OpeningCard />
-              {!(b.settings?.centerAd && b.settings.centerAd.modes.includes("center")) && b.ads.top && <Sponsored ad={b.ads.top} compact={host.layout === "bottom"} />}
               <Tabs />
-              {b.settings?.centerAd && b.settings.centerAd.modes.includes("center") && <CenterAd ad={b.settings.centerAd} />}
+              <div class="stack">
+                <Intro />
+                <OpeningCard />
+                {b.settings?.centerAd && b.settings.centerAd.modes.includes("center") && <CenterAd ad={b.settings.centerAd} />}
+                {!(b.settings?.centerAd && b.settings.centerAd.modes.includes("center")) && b.ads.top && <Sponsored ad={b.ads.top} compact={host.layout === "bottom"} />}
+              </div>
               <main class="views" data-tab={tab.value}>
                 {tab.value === "chat" && <ChatView />}
                 {tab.value === "comments" && <CommentsView />}

@@ -13,6 +13,7 @@ import { MediaPage } from "./MediaPage";
 import { goHome, loadFollows, loadStudent, loadTree, mode, openPlace, parseLocation, place, remember, student, pendingDoc } from "./state";
 
 document.documentElement.dataset.theme = "light";
+document.documentElement.dataset.app = "media";
 
 async function start() {
   await initAuth();
