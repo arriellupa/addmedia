@@ -20,6 +20,7 @@ interface Att {
   isNew: boolean;
   canPost: boolean;
   needStudent?: boolean; // campus room and the person has no student profile
+  needPassword?: boolean; // campus room and the account has no password yet
   sent: number[];
 }
 
@@ -315,6 +316,7 @@ export class PageRoom extends DurableObject<Env> {
       isNew: req.headers.get("X-New") === "1",
       canPost: req.headers.get("X-Can-Post") === "1",
       needStudent: req.headers.get("X-Need-Student") === "1",
+      needPassword: req.headers.get("X-Need-Student") === "password",
       sent: [],
     };
     const metaHeader = req.headers.get("X-Meta");
@@ -346,6 +348,7 @@ export class PageRoom extends DurableObject<Env> {
     const reply = (o: unknown) => ws.send(JSON.stringify(o));
     const cid = String(msg.cid ?? "").slice(0, 40);
     if (!att.uid || !att.canPost) return reply({ t: "nack", cid, code: "auth", message: "צריך להתחבר כדי לכתוב." });
+    if (att.needPassword) return reply({ t: "nack", cid, code: "password", message: "קבעו סיסמה לחשבון כדי להמשיך" });
     if (att.needStudent) return reply({ t: "nack", cid, code: "student", message: "כדי להשתתף בקמפוס צריך להזדהות: שם, פקולטה, שנה ומגמה" });
     const body = String(msg.body ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_CHAT);
     if (!body) return;

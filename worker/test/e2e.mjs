@@ -20,9 +20,11 @@ async function api(path, { method = "GET", token, body, raw, headers = {} } = {}
   return { status: r.status, j, r };
 }
 
-async function login(email) {
+const PW = "Sisma-1234!";
+// code sign-in, setting the password with the code (campus writes need one); withPassword=false = AddMedia's code-only account
+async function login(email, withPassword = true) {
   const s = await api("/v1/auth/start", { method: "POST", body: { email } });
-  const v = await api("/v1/auth/verify", { method: "POST", body: { email, code: s.j.devCode } });
+  const v = await api("/v1/auth/verify", { method: "POST", body: { email, code: s.j.devCode, ...(withPassword ? { password: PW } : {}) } });
   return v.j;
 }
 
@@ -419,6 +421,107 @@ console.log("campus v2: search, articles, course meta, events, student gate in r
   ok(r.j.ok && r.j.campusUntil > new Date(Date.now() + 390 * 864e5).toISOString().slice(0, 10), "admin grants the plan by hand", JSON.stringify(r.j));
   ok((await api("/v1/me", { token: C.token })).j.user.campusUntil === r.j.campusUntil, "the plan shows on the user");
   await api(`/v1/campus/docs/${dArt}`, { method: "DELETE", token: A.token });
+
+  console.log("password sign-in, devices, anti-sharing");
+  {
+    const EM = `dana.${RUN}@example.com`;
+    const dev = (id) => ({ "X-Device": id, "User-Agent": "Mozilla/5.0 (iPhone) Safari/604.1" });
+    r = await api("/v1/auth/register", { method: "POST", body: { email: EM, password: "short" } });
+    ok(r.status === 400 && r.j.error.code === "weak_password", "register needs 8+ chars");
+    r = await api("/v1/auth/register", { method: "POST", body: { email: EM, password: PW, name: "דנה" } });
+    ok(r.j.pending && r.j.devCode, "register sends the code", JSON.stringify(r.j));
+    r = await api("/v1/auth/verify", { method: "POST", body: { email: EM, code: r.j.devCode, password: PW, name: "דנה" }, headers: dev("device-one-11") });
+    ok(r.status === 200 && r.j.token && r.j.user.hasPassword && r.j.user.name === "דנה" && r.j.user.email === EM, "the code completes the registration and signs in", JSON.stringify(r.j));
+    const D1 = r.j.token;
+    const D = r.j.user;
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: "wrong-wrong" }, headers: dev("device-one-11") });
+    ok(r.status === 401 && r.j.error.code === "wrong_password" && r.j.error.left === 7, "a wrong password is refused and counted", JSON.stringify(r.j));
+    for (let i = 0; i < 7; i++) r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: "wrong-wrong" }, headers: dev("device-one-11") });
+    ok(r.status === 429 && r.j.error.code === "locked" && r.j.error.until > Date.now(), "8 wrong tries lock the account for 15 minutes", JSON.stringify(r.j));
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-one-11") });
+    ok(r.status === 429 && r.j.error.code === "locked", "even the right password waits while locked");
+    r = await api(`/v1/admin/users/${D.id}`, { method: "POST", token: ADMIN, body: { unlock: true, note: "בדיקה" } });
+    ok(r.j.ok, "admin clears the lock");
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-one-11") });
+    ok(r.status === 200 && r.j.token && !r.j.needCode, "a known device signs in with the password alone", JSON.stringify(r.j));
+    const D1b = r.j.token;
+    ok((await api("/v1/me", { token: D1 })).status === 401 && (await api("/v1/me", { token: D1b })).status === 200, "a new sign-in on the same device replaces its old session");
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-two-22") });
+    ok(r.status === 200 && r.j.needCode && r.j.devCode, "a new device needs the email code", JSON.stringify(r.j));
+    r = await api("/v1/auth/verify", { method: "POST", body: { email: EM, code: r.j.devCode }, headers: dev("device-two-22") });
+    ok(r.status === 200 && r.j.token && r.j.evicted === null, "the code signs the second device in", JSON.stringify(r.j));
+    const D2 = r.j.token;
+    r = await api("/v1/me/devices", { token: D2 });
+    ok(r.j.devices.length === 2 && r.j.devices.find((d) => d.id === "device-two-22")?.current && r.j.devices.find((d) => d.id === "device-one-11")?.name.includes("Safari"), "two devices are listed, with the current one marked", JSON.stringify(r.j));
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-three-3") });
+    r = await api("/v1/auth/verify", { method: "POST", body: { email: EM, code: r.j.devCode }, headers: dev("device-three-3") });
+    ok(r.status === 200 && r.j.evicted, "a third device evicts the oldest one (the owner is emailed)", JSON.stringify(r.j));
+    const D3 = r.j.token;
+    ok((await api("/v1/me", { token: D1b })).status === 401 && (await api("/v1/me", { token: D2 })).status === 200, "the first device's session is revoked, the second stays");
+    r = await api("/v1/me/devices", { token: D3 });
+    ok(r.j.devices.length === 2 && !r.j.devices.some((d) => d.id === "device-one-11"), "the device list has the two live ones");
+    r = await api("/v1/me/devices/device-two-22", { method: "DELETE", token: D3 });
+    ok(r.j.ok && r.j.devices.length === 1 && (await api("/v1/me", { token: D2 })).status === 401, "a device can be signed out from the list");
+    // the password gate: a code-only account (AddMedia) cannot write in the campus
+    const E = await login(`eyal.${RUN}@example.com`, false);
+    await api("/v1/me", { method: "POST", token: E.token, body: { acceptTerms: true } });
+    r = await api("/v1/me/student", { method: "PUT", token: E.token, body: { fullName: "אייל רז", inst: "reichman", faculty: "משפטים", year: 1, track: "כללי" } });
+    ok(r.status === 200, "a code-only account may fill the profile");
+    r = await write("ניסיון בלי סיסמה", E.token, "טקסט ארוך מספיק שלא אמור להתפרסם בלי סיסמה.");
+    ok(r.status === 403 && r.j.error.code === "password", "a campus write without a password is refused", JSON.stringify(r.j));
+    r = await api("/v1/posts", { method: "POST", token: E.token, body: { url: ROOM, body: "שלום לכולם בקמפוס" } });
+    ok(r.status === 403 && r.j.error.code === "password", "so is a talkback in a campus room");
+    r = await api("/v1/auth/login", { method: "POST", body: { email: `eyal.${RUN}@example.com`, password: PW } });
+    ok(r.status === 400 && r.j.error.code === "no_password", "password login tells a code-only account it has none");
+    r = await api("/v1/auth/password", { method: "POST", token: E.token, body: { password: PW } });
+    ok(r.j.ok && r.j.hasPassword, "the account sets a password while signed in");
+    ok((await write("עכשיו עם סיסמה", E.token, "טקסט ארוך מספיק שמתפרסם אחרי קביעת סיסמה.")).status === 200, "and then writes");
+    // reading: the watermark, one reader at a time, and the velocity lock
+    await api("/v1/me", { method: "POST", token: D3, body: { acceptTerms: true } });
+    await api("/v1/me/student", { method: "PUT", token: D3, body: { fullName: "דנה לוין", inst: "reichman", faculty: "משפטים", year: 1, track: "כללי" } });
+    r = await api(`/v1/campus/docs/${dLec}`, { token: D3, headers: { ...dev("device-three-3"), "CF-Connecting-IP": "10.0.0.1" } });
+    ok(r.status === 200 && r.j.shownTo.name === "דנה לוין" && r.j.shownTo.email === EM, "a document read carries the watermark", JSON.stringify(r.j.shownTo));
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-four-44") });
+    r = await api("/v1/auth/verify", { method: "POST", body: { email: EM, code: r.j.devCode }, headers: dev("device-four-44") });
+    const D4 = r.j.token;
+    r = await api(`/v1/campus/docs/${dLec}`, { token: D4, headers: { ...dev("device-four-44"), "CF-Connecting-IP": "10.0.0.2" } });
+    ok(r.status === 409 && r.j.error.code === "busy", "another device from another IP within 90 s is busy", JSON.stringify(r.j));
+    r = await api(`/v1/campus/docs/${dLec}`, { token: D4, headers: { ...dev("device-four-44"), "CF-Connecting-IP": "10.0.0.1" } });
+    ok(r.status === 200, "the same IP (the same home) is fine");
+    const wmPdf = (await api(`/v1/campus/docs/file?${fq({ topic: "קובץ לסימן מים" })}`, { method: "POST", token: A.token, raw: Buffer.concat([Buffer.from(`%PDF-1.4 wm ${RUN}\n`), Buffer.alloc(120, 32)]), headers: { "Content-Type": "application/pdf" } })).j.doc.id;
+    f = await fetch(`${BASE}/v1/campus/docs/${wmPdf}/file`, { headers: { Authorization: `Bearer ${D3}`, ...dev("device-three-3"), "CF-Connecting-IP": "10.0.0.1" } });
+    ok(f.status === 200 && decodeURIComponent(f.headers.get("x-shown-to") || "").includes("דנה לוין"), "the file route carries the watermark in X-Shown-To", f.status + " " + f.headers.get("x-shown-to"));
+    await api(`/v1/campus/docs/${wmPdf}`, { method: "DELETE", token: A.token });
+    let last;
+    for (let i = 0; i < 40; i++) last = await api(`/v1/campus/docs/${dLec}`, { token: D3, headers: { ...dev("device-three-3"), "CF-Connecting-IP": "10.0.0.1" } });
+    ok(last.status === 423 && last.j.error.code === "reset", "more than 40 reads in 10 minutes lock the account", JSON.stringify(last.j));
+    ok((await api("/v1/me", { token: D3 })).status === 423, "a locked account cannot use its sessions");
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-three-3") });
+    ok(r.status === 429 && r.j.error.code === "locked", "sign-in waits out the 15 minutes");
+    r = await api(`/v1/admin/users/${D.id}`, { method: "POST", token: ADMIN, body: { unlock: true } });
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-three-3") });
+    ok(r.status === 200 && r.j.token, "after the admin clears the lock the password works again", JSON.stringify(r.j));
+    // locked again (the reads are still in the window), then forgot → reset signs the others out
+    await env_lock();
+    async function env_lock() {
+      const n = await api(`/v1/campus/docs/${dLec}`, { token: r.j.token, headers: { ...dev("device-three-3"), "CF-Connecting-IP": "10.0.0.1" } });
+      ok(n.status === 423, "the read log still trips the lock");
+    }
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-three-3") });
+    ok(r.status === 429 || r.status === 423, "sign-in is locked until a new password", JSON.stringify(r.j));
+    r = await api("/v1/auth/password/forgot", { method: "POST", body: { email: EM } });
+    ok(r.j.sent && r.j.devCode, "forgot sends a reset code");
+    r = await api("/v1/auth/password/reset", { method: "POST", body: { email: EM, code: r.j.devCode, password: "Sisma-5678!" }, headers: dev("device-five-55") });
+    ok(r.status === 200 && r.j.token && !r.j.user.mustReset, "the reset sets the password, clears the lock and signs in", JSON.stringify(r.j));
+    ok((await api("/v1/me", { token: D4 })).status === 401 && (await api("/v1/me", { token: r.j.token })).status === 200, "every other device is signed out");
+    r = await api("/v1/auth/login", { method: "POST", body: { email: EM, password: PW }, headers: dev("device-five-55") });
+    ok(r.status === 401, "the old password no longer works");
+    ok((await api("/v1/auth/password/forgot", { method: "POST", body: { email: `nobody.${RUN}@example.com` } })).j.sent === true, "forgot never says whether an account exists");
+    r = await api("/v1/admin/users?q=" + encodeURIComponent("דנה"), { token: ADMIN });
+    ok(r.j.users.some((u) => u.id === D.id && u.has_password === 1 && !u.must_reset), "admin sees the password state");
+    for (const t of [E.token]) await api("/v1/me", { method: "DELETE", token: t });
+    await api("/v1/me", { method: "DELETE", token: (await api("/v1/auth/login", { method: "POST", body: { email: EM, password: "Sisma-5678!" }, headers: dev("device-five-55") })).j.token });
+  }
 
   console.log("campus v2: attach my materials to any page");
   const PAGE2 = `https://www.calcalist.co.il/local/article/${RUN}`;

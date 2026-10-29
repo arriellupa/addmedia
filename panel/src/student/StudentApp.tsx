@@ -3,21 +3,20 @@
 // text and filters) and «העלה סיכום» (one window: the lesson's details from the profile, then write / paste / file).
 // The course page, the reader, the editor, the student sheet, the paywall and the takedown flow come from the campus.
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { CampusDoc, CampusPlace, DirectoryTree, SearchHit, api } from "../api";
-import { Book, Calendar, Cap, Check, Chevron, Edit, FileI, Home, Search as SearchI, Shield, Star, Upload, UserI, Users, X } from "../icons";
+import { CampusPlace, DirectoryTree, SearchHit, api } from "../api";
+import { Book, Calendar, Cap, Chevron, Search as SearchI, Shield, Star, Upload, UserI, X } from "../icons";
 import { me, needAuth, presence, say, sheet } from "../state";
 import { Avatar, LiveDot, Toast } from "../ui/Bits";
 import { Sheets } from "../ui/Sheets";
-import { Dialog } from "../media/Dialog";
 import { Course } from "../media/campus/CampusPage";
 import { DirectorySheet } from "../media/campus/Directory";
-import { DocCard, Editor } from "../media/campus/Docs";
+import { DocCard } from "../media/campus/Docs";
 import { PaywallSheet, StudentSheet } from "../media/campus/Onboard";
 import { Reader } from "../media/campus/Reader";
 import { TakedownDialog } from "../media/campus/Takedown";
-import {
-  YEAR_HE, dirNode, dirOpen, editor, follows, goHome, instName, loadStudent, loadTree, openDoc, openPlace, paywall, place, reader, saveDoc, saveDocFile, showPaywall, slug, splitSections, student, takedownOpen, today, toggleFollow, tree, unslug,
-} from "../media/state";
+import { YEAR_HE, dirNode, dirOpen, editor, follows, goHome, instName, loadStudent, loadTree, openDoc, openPlace, paywall, place, reader, showPaywall, slug, student, takedownOpen, tree, unslug } from "../media/state";
+import { AccountSheet, PasswordSheet, StudentSignIn, resetTokenFromHash } from "./Account";
+import { UploadWindow } from "./Editor";
 
 /** the site's own routes (besides the campus's /student/campus/… course pages): home, an institution, a faculty's finder, my pages */
 type View = { v: "home" } | { v: "inst"; inst: string } | { v: "find"; inst: string; faculty: string } | { v: "mine" };
@@ -37,8 +36,24 @@ export const REGIONS = ["מרכז", "השרון", "צפון", "ירושלים", 
 export function StudentApp() {
   const [view, setView] = useState<View>(parseView);
   const [upload, setUpload] = useState(false);
+  /** an emailed `/#reset=<token>` link opens the new-password screen */
+  const [resetToken] = useState(resetTokenFromHash);
   const pl = place.value;
   const u = me.value;
+  const sh = sheet.value;
+  useEffect(() => {
+    if (resetToken) sheet.value = { type: "signin" };
+  }, []);
+  // the editor needs the student profile (the place of the summary comes from it)
+  useEffect(() => {
+    if (!editor.value || student.value) return;
+    const ed = editor.value;
+    loadStudent().then((st) => {
+      if (st || editor.value !== ed) return;
+      editor.value = null;
+      sheet.value = { type: "student", then: () => (editor.value = ed) };
+    });
+  }, [editor.value, student.value]);
   const go = (v: View, replace = false) => {
     if (place.value) goHome();
     setView(v);
@@ -73,7 +88,7 @@ export function StudentApp() {
             <Star size={16} /> הדפים שלי
           </button>
         </nav>
-        <button class={`me-btn ${u ? "" : "out"}`} onClick={() => (sheet.value = u ? { type: "mymedia" } : { type: "signin" })}>
+        <button class={`me-btn ${u ? "" : "out"}`} onClick={() => (sheet.value = u ? { type: "account" } : { type: "signin" })}>
           {u && <Avatar id={u.id} name={u.name} size={24} />}
           {u ? u.name : "כניסה"}
         </button>
@@ -126,19 +141,21 @@ export function StudentApp() {
           <Star size={20} />
           <span>הדפים שלי</span>
         </button>
-        <button class="st-bar-btn" onClick={() => (sheet.value = u ? { type: "mymedia" } : { type: "signin" })}>
+        <button class="st-bar-btn" onClick={() => (sheet.value = u ? { type: "account" } : { type: "signin" })}>
           {u ? <Avatar id={u.id} name={u.name} size={22} /> : <UserI size={20} />}
           <span>{u ? "פרופיל" : "כניסה"}</span>
         </button>
       </nav>
       {upload && <UploadWindow onClose={() => setUpload(false)} />}
       {reader.value && <Reader />}
-      {editor.value && <Editor />}
+      {/* the campus's own openings of the editor (a course page's buttons, the owner's «עריכה» in the reader or on a card) land in the same window */}
+      {editor.value && student.value && <UploadWindow existing={editor.value.doc} onClose={() => (editor.value = null)} />}
       {dirOpen.value && pl && <DirectorySheet />}
       {takedownOpen.value && <TakedownDialog onClose={() => (takedownOpen.value = false)} />}
-      {sheet.value?.type === "student" && <StudentSheet then={sheet.value.then} />}
+      {sh?.type === "student" && <StudentSheet then={sh.then} />}
       {paywall.value && <PaywallSheet />}
-      <Sheets />
+      {/* the students' own sheets: password sign-in, the account, the set-a-password prompt; the rest from AddMedia */}
+      {sh?.type === "signin" ? <StudentSignIn then={sh.then} resetToken={resetToken} /> : sh?.type === "account" ? <AccountSheet section={sh.section} /> : sh?.type === "password" ? <PasswordSheet then={sh.then} reason={sh.reason} /> : <Sheets />}
       <Toast />
     </div>
   );
@@ -616,291 +633,3 @@ function Mine({ onFind }: { onFind: () => void }) {
     </div>
   );
 }
-
-// ---------- «העלה סיכום»: one window, three ways ----------
-type Way = "write" | "paste" | "file";
-const MIN = 20;
-const MAX = 60_000;
-
-function htmlToText(html: string): string {
-  const div = document.createElement("div");
-  div.innerHTML = html;
-  div.querySelectorAll("script,style").forEach((e) => e.remove());
-  const out: string[] = [];
-  const walk = (el: Element) => {
-    for (const n of Array.from(el.childNodes)) {
-      if (n.nodeType === 3) out.push(n.textContent || "");
-      else if (n.nodeType === 1) {
-        const e = n as Element;
-        const tag = e.tagName.toLowerCase();
-        if (/^h[1-6]$/.test(tag)) out.push(`\n\n# ${(e.textContent || "").trim()}\n\n`);
-        else if (tag === "li") (out.push("\n• "), walk(e));
-        else if (tag === "br") out.push("\n");
-        else if (/^(p|div|tr|ul|ol|table|section|blockquote)$/.test(tag)) (out.push("\n\n"), walk(e), out.push("\n\n"));
-        else if (tag === "td" || tag === "th") (walk(e), out.push(" | "));
-        else if ((tag === "b" || tag === "strong") && (e.textContent || "").trim().length <= 60 && e.parentElement && (e.parentElement.textContent || "").trim() === (e.textContent || "").trim()) out.push(`\n\n# ${(e.textContent || "").trim()}\n\n`);
-        else walk(e);
-      }
-    }
-  };
-  walk(div);
-  return out
-    .join("")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-export function UploadWindow({ onClose }: { onClose: () => void }) {
-  const s = student.value!;
-  const t = tree.value;
-  const [way, setWay] = useState<Way>("write");
-  const [course, setCourse] = useState("");
-  const [topic, setTopic] = useState("");
-  const [lecturer, setLecturer] = useState("");
-  const [published, setPublished] = useState(today());
-  const [lessonDate, setLessonDate] = useState("");
-  const [body, setBody] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [author, setAuthor] = useState(false);
-  const [busy, setBusy] = useState<null | string>(null);
-  const [done, setDone] = useState<{ doc: CampusDoc; textOk: boolean } | null>(null);
-  const [dir, setDir] = useState<DirectoryTree | null>(null);
-  const fileIn = useRef<HTMLInputElement>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    loadTree();
-    api
-      .facultyTree(s.inst, s.faculty, s.year)
-      .then((r) => setDir(r))
-      .catch(() => setDir({ courses: [] }));
-    // the upload speaks about the student's own place
-    if (!place.value || place.value.inst !== s.inst) {
-      // nothing else: saveDoc takes the place from `place`, so set it quietly without navigating when none is open
-    }
-  }, []);
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [busy]);
-  const courses = useMemo(() => (dir?.courses || []).filter((c) => !!c.course).map((c) => c.course!), [dir]);
-  const lecturers = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of dir?.courses || []) for (const l of c.lecturers) if (l.lecturer) m.set(l.lecturer, l.name || unslug(l.lecturer));
-    return [...m.values()];
-  }, [dir]);
-  const n = body.length;
-  const sections = useMemo(() => splitSections(body).filter((x) => x.heading), [body]);
-  const metaOk = slug(course).length >= 2 && topic.trim().length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(published) && (!lessonDate || /^\d{4}-\d{2}-\d{2}$/.test(lessonDate));
-  const contentOk = way === "file" ? !!file : n >= MIN && n <= MAX;
-  const ok = metaOk && contentOk && author;
-  const pick = (f: File | undefined) => {
-    if (!f) return;
-    const okType = /\.(pdf|docx)$/i.test(f.name) || f.type === "application/pdf" || f.type.includes("wordprocessingml");
-    if (!okType) return say("רק קובצי Word (.docx) או PDF.", "err");
-    if (f.size > 15 * 1024 * 1024) return say("הקובץ גדול מדי (עד 15MB).", "err");
-    setFile(f);
-    if (!topic.trim()) setTopic(f.name.replace(/\.(pdf|docx)$/i, "").replace(/[_-]+/g, " ").slice(0, 120));
-  };
-  const insertHeading = () => {
-    const el = area.current;
-    if (!el) return;
-    const pos = el.selectionStart ?? body.length;
-    const before = body.slice(0, pos);
-    const next = `${before}${before && !before.endsWith("\n") ? "\n" : ""}# `;
-    setBody(next + body.slice(pos));
-    requestAnimationFrame(() => (el.focus(), (el.selectionStart = el.selectionEnd = next.length)));
-  };
-  const submit = async () => {
-    if (!ok || busy) return;
-    // the summary belongs to the student's own faculty and year
-    const target: CampusPlace = { inst: s.inst, faculty: s.faculty, year: s.year };
-    if (!place.value || place.value.inst !== target.inst || place.value.faculty !== target.faculty || place.value.year !== target.year) place.value = target;
-    const meta = { course: slug(course), topic: topic.trim(), lecturer: lecturer.trim() || undefined, lessonDate: lessonDate || undefined, published };
-    if (way === "file") {
-      setBusy("מעלה את הקובץ…");
-      const r = await saveDocFile({ title: topic.trim(), ...meta }, file!, (stage, a, b) => setBusy(stage === "upload" ? "מעלה את הקובץ…" : stage === "extract" ? `מחלץ טקסט במכשיר שלכם… ${a && b && b > 1 ? `${a}/${b}` : ""}` : "שומר את הטקסט לחיפוש…"));
-      setBusy(null);
-      if (r) setDone(r);
-      return;
-    }
-    setBusy("מפרסם…");
-    const d = await saveDoc({ kind: "summary", title: topic.trim(), body: body.replace(/\r\n/g, "\n").trim(), ...meta }, undefined);
-    setBusy(null);
-    if (d) setDone({ doc: d, textOk: true });
-  };
-  if (done)
-    return (
-      <Dialog title="הסיכום פורסם" onClose={onClose}>
-        <div class="cp-done">
-          <span class="cp-done-ic">
-            <Check size={26} />
-          </span>
-          <div class="cp-done-title" dir="auto">
-            {done.doc.title}
-          </div>
-          <div class="cp-done-sub">
-            {unslug(done.doc.place.course)} · שנה {YEAR_HE[done.doc.place.year]} · גלוי לכל השנה עם שמכם.
-          </div>
-          {!done.textOk && <div class="cp-hint">הטקסט לא חולץ מהקובץ (אולי סריקה). הקובץ זמין לקריאה ולהורדה; החיפוש בתוכו לא.</div>}
-          <div class="cp-done-actions">
-            <button class="btn btn-primary" onClick={() => (onClose(), openPlace(done.doc.place), openDoc(done.doc))}>
-              פתיחה
-            </button>
-            <button class="btn btn-secondary" onClick={() => (onClose(), openPlace(done.doc.place))}>
-              לדף הקורס
-            </button>
-          </div>
-        </div>
-      </Dialog>
-    );
-  return (
-    <Dialog title="העלה סיכום" onClose={onClose} closable={!busy} wide cls="st-upload">
-      <div class="form">
-        <div class="st-up-profile">
-          <div class="st-up-pf">
-            <span class="st-up-k">פקולטה</span>
-            <b dir="auto">{unslug(s.faculty)}</b>
-          </div>
-          <div class="st-up-pf">
-            <span class="st-up-k">חוג / מגמה</span>
-            <b dir="auto">{s.track}</b>
-          </div>
-          <div class="st-up-pf">
-            <span class="st-up-k">שנה</span>
-            <b>שנה {YEAR_HE[s.year]}</b>
-          </div>
-          <div class="st-up-pf">
-            <span class="st-up-k">מוסד</span>
-            <b dir="auto">{instName(s.inst)}</b>
-          </div>
-          <button class="link" onClick={() => (sheet.value = { type: "student" })}>
-            <Edit size={12} /> שינוי
-          </button>
-        </div>
-        <div class="st-up-grid">
-          <label class="field">
-            <span>שם השיעור</span>
-            <input class="input" dir="auto" list="st-up-course" value={course} maxLength={60} onInput={(e) => setCourse(e.currentTarget.value)} placeholder="דיני חוזים" />
-            <datalist id="st-up-course">{courses.map((c) => <option key={c} value={unslug(c)} />)}</datalist>
-          </label>
-          <label class="field">
-            <span>נושא הסיכום</span>
-            <input class="input" dir="auto" value={topic} maxLength={120} onInput={(e) => setTopic(e.currentTarget.value)} placeholder="כריתת חוזה: הצעה וקיבול" />
-          </label>
-          <label class="field">
-            <span>שם המרצה</span>
-            <input class="input" dir="auto" list="st-up-lect" value={lecturer} maxLength={60} onInput={(e) => setLecturer(e.currentTarget.value)} placeholder="פרופ׳ כהן" />
-            <datalist id="st-up-lect">{lecturers.map((l) => <option key={l} value={l} />)}</datalist>
-          </label>
-          <label class="field">
-            <span>תאריך הפרסום</span>
-            <input class="input ltr" type="date" value={published} onInput={(e) => setPublished(e.currentTarget.value)} />
-          </label>
-          <label class="field">
-            <span>תאריך השיעור (לא חובה)</span>
-            <input class="input ltr" type="date" value={lessonDate} onInput={(e) => setLessonDate(e.currentTarget.value)} />
-          </label>
-        </div>
-
-        <div class="st-ways" role="tablist" aria-label="איך מעלים">
-          {(
-            [
-              ["write", "כתיבה", "כותבים כאן, עם כותרות סעיפים", <Edit size={18} />],
-              ["paste", "הדבקה", "מדביקים טקסט ממסמך או מאתר", <FileI size={18} />],
-              ["file", "העלאת קובץ", "Word או PDF, עם גרפים ותמונות", <Upload size={18} />],
-            ] as [Way, string, string, any][]
-          ).map(([k, label, sub, ic]) => (
-            <button key={k} role="tab" aria-selected={way === k} class={`st-way ${way === k ? "on" : ""}`} onClick={() => setWay(k)}>
-              <span class="st-way-ic">{ic}</span>
-              <b>{label}</b>
-              <small>{sub}</small>
-            </button>
-          ))}
-        </div>
-
-        {way !== "file" && (
-          <div class="st-up-text">
-            <div class="cp-ed-tools">
-              {way === "write" && (
-                <button class="btn btn-secondary btn-sm" onClick={insertHeading}>
-                  <span class="cp-hash">#</span> כותרת סעיף
-                </button>
-              )}
-              <span class="cp-ed-toolnote">{way === "write" ? "שורה שמתחילה ב-# היא כותרת סעיף; לכל סעיף יש קישור ודיון." : "כותרות מהמסמך נשמרות כסעיפים. אפשר לערוך אחרי ההדבקה."}</span>
-              <span class="pane-sp" />
-              <span class={`cp-ed-count num ${n > MAX ? "over" : n && n < MIN ? "under" : ""}`}>
-                {n.toLocaleString("he-IL")} / {MAX.toLocaleString("he-IL")}
-              </span>
-            </div>
-            <textarea
-              ref={area}
-              class="cp-ed-area st-area"
-              dir="auto"
-              value={body}
-              placeholder={way === "write" ? "כתבו כאן.\n\n# כריתת חוזה\nהצעה וקיבול…\n\n# גמירת דעת\n…" : "הדביקו כאן את הטקסט (Ctrl+V). כותרות וסעיפים מהמקור נשמרים."}
-              onInput={(e) => setBody(e.currentTarget.value)}
-              onPaste={(e) => {
-                const html = e.clipboardData?.getData("text/html");
-                if (!html) return;
-                e.preventDefault();
-                const txt = htmlToText(html);
-                const el = e.currentTarget;
-                const pos = el.selectionStart ?? body.length;
-                setBody(body.slice(0, pos) + txt + body.slice(el.selectionEnd ?? pos));
-              }}
-            />
-            {sections.length > 0 && (
-              <div class="st-secs">
-                {sections.map((x) => (
-                  <span key={x.i} class="cp-card-sec" dir="auto">
-                    §{x.i} {x.heading}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {way === "file" && (
-          <div class="st-up-file">
-            <button class={`drop ${file ? "has" : ""}`} onClick={() => fileIn.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), pick(e.dataTransfer?.files?.[0]))}>
-              <FileI size={28} />
-              <span class="drop-title" dir="auto">
-                {file ? file.name : "בחירת קובץ Word או PDF"}
-              </span>
-              <span class="drop-sub">{file ? `${Math.max(1, Math.round(file.size / 1024))}KB · לחיצה להחלפה` : "עד 15MB · גרפים ותמונות נשמרים · הקובץ מוצג כמו שהוא, עם שמכם"}</span>
-            </button>
-            <input ref={fileIn} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden onChange={(e) => pick(e.currentTarget.files?.[0])} />
-            <p class="fine">הטקסט מחולץ מהקובץ במכשיר שלכם אחרי ההעלאה, כדי שאפשר יהיה לחפש בו ולדון לפי סעיף. הקובץ המקורי נשמר ומוצג בקריאה.</p>
-          </div>
-        )}
-
-        <label class={`cp-declare ${author ? "on" : ""}`}>
-          <input type="checkbox" checked={author} onChange={(e) => setAuthor(e.currentTarget.checked)} />
-          <span>
-            <b>כתבתי או ערכתי את הסיכום במילותיי</b>
-            <small>לא העתקתי מצגת, הקלטה או מבחן של מרצה. חומר של מרצים ומוסדות מוסר לבקשתם, והחשבון מקבל ציון.</small>
-          </span>
-        </label>
-        <div class="cp-trust sm">
-          <Shield size={16} />
-          <span>
-            <b>הסרה לפי דרישה:</b> בעלי זכויות, מרצים ומוסדות — כל פריט מוסר תוך 24–48 שעות מהפנייה.
-          </span>
-        </div>
-        {busy && (
-          <div class="cp-progress">
-            <div class="cp-progress-bar" style={{ width: "60%" }} />
-            <span>{busy}</span>
-          </div>
-        )}
-        <button class="btn btn-primary btn-block btn-lg" disabled={!ok || !!busy} onClick={submit}>
-          {busy ? busy : "פרסום"}
-        </button>
-        {!metaOk && (course || topic) && <p class="cp-hint">צריך שם שיעור ונושא, ותאריך פרסום תקין.</p>}
-      </div>
-    </Dialog>
-  );
-}
-

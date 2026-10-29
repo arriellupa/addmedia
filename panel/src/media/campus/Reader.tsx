@@ -8,7 +8,7 @@ import { ago, date } from "../../fmt";
 import { ArrowNext, ArrowPrev, Chevron, Copy, Edit, External, FileI, MessageI, Quote, Shield, X } from "../../icons";
 import { composerInsert, me, needAuth, say, sheet } from "../../state";
 import { Avatar } from "../../ui/Bits";
-import { KIND_HE, closeReader, ctab, docLink, editor, fetchBody, reader, readerSection, splitSections, takedownOpen, unslug } from "../state";
+import { KIND_HE, appBase, closeReader, ctab, docLink, editor, fetchBody, reader, readerSection, shownToOf, splitSections, takedownOpen, unslug } from "../state";
 import { hostOf } from "./Docs";
 
 const SEC = /^§(\d+):\s*/;
@@ -26,6 +26,9 @@ export function Reader() {
     }
   });
   const [talk, setTalk] = useState(false);
+  /** 409 `busy`: the account is reading on another device right now — the person may retry */
+  const [busyMsg, setBusyMsg] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const main = useRef<HTMLDivElement>(null);
   /** the observer follows the reader only after the reader scrolled (not the programmatic scroll to a deep link) */
   const quietUntil = useRef(0);
@@ -33,10 +36,17 @@ export function Reader() {
   useEffect(() => {
     setBody(null);
     setErr(null);
+    setBusyMsg(null);
     fetchBody(d.id)
       .then(setBody)
-      .catch((e) => (d.file ? setBody("") : setErr(e?.code === "plan" || e?.status === 402 ? "הקריאה דורשת מנוי קמפוס או ניסיון חינם." : e?.message || "הטקסט לא נטען.")));
-  }, [d.id]);
+      .catch((e) => {
+        if (e?.status === 409 || e?.code === "busy") return setBusyMsg(e?.message || "החשבון בשימוש במכשיר אחר כרגע.");
+        d.file ? setBody("") : setErr(e?.code === "plan" || e?.status === 402 ? "הקריאה דורשת מנוי קמפוס או ניסיון חינם." : e?.message || "הטקסט לא נטען.");
+      });
+  }, [d.id, attempt]);
+  // the watermark: who this copy was shown to (the students' site only)
+  const shown = appBase.value === "/student" ? shownToOf(d.id) : null;
+  const shownText = shown ? `הוצג ל: ${shown.name}${shown.email ? ` · ${shown.email}` : ""}` : "";
   useEffect(() => {
     document.body.classList.add("cp-reading");
     const h = (e: KeyboardEvent) => {
@@ -183,6 +193,19 @@ export function Reader() {
             <h1 class="cp-rd-h1" dir="auto">
               {d.title}
             </h1>
+            {shown && (
+              <div class="cp-rd-shown" title="העותק הזה אישי: החשבון אישי, ושיתופו עם אחרים מבטל את המנוי">
+                {shownText}
+              </div>
+            )}
+            {busyMsg && (
+              <div class="cp-state err">
+                <span>{busyMsg}</span>
+                <button class="btn btn-secondary btn-sm" onClick={() => setAttempt((a) => a + 1)}>
+                  נסו שוב
+                </button>
+              </div>
+            )}
             {err && (
               <div class="cp-state err">
                 <span>{err}</span>
@@ -195,23 +218,32 @@ export function Reader() {
                 ))}
               </div>
             )}
-            {d.file && <FileView d={d} />}
-            {d.file && body !== null && body.trim() && <div class="cp-rd-filetext">הטקסט שחולץ מהקובץ (לחיפוש ולדיון לפי סעיף):</div>}
-            {sections.map((s) => (
-              <section key={s.i} class="cp-rd-section" data-sec={s.i} dir="auto">
-                {s.heading && (
-                  <h2 class="cp-rd-h2">
-                    <span class="cp-rd-anchor num" aria-hidden="true">
-                      §{s.i}
-                    </span>
-                    {s.heading}
-                  </h2>
-                )}
-                {s.text.split(/\n{2,}/).map((p, i) => (
-                  <p key={i}>{p}</p>
-                ))}
-              </section>
-            ))}
+            <div class={`cp-rd-content ${shown ? "wm" : ""}`}>
+              {shown && (
+                <div class="cp-wm" aria-hidden="true">
+                  {Array.from({ length: 40 }, (_, i) => (
+                    <span key={i}>{shownText}</span>
+                  ))}
+                </div>
+              )}
+              {d.file && <FileView d={d} />}
+              {d.file && body !== null && body.trim() && <div class="cp-rd-filetext">הטקסט שחולץ מהקובץ (לחיפוש ולדיון לפי סעיף):</div>}
+              {sections.map((s) => (
+                <section key={s.i} class="cp-rd-section" data-sec={s.i} dir="auto">
+                  {s.heading && (
+                    <h2 class="cp-rd-h2">
+                      <span class="cp-rd-anchor num" aria-hidden="true">
+                        §{s.i}
+                      </span>
+                      {s.heading}
+                    </h2>
+                  )}
+                  {s.text.split(/\n{2,}/).map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </section>
+              ))}
+            </div>
             {body !== null && !(d.file && !body.trim()) && <div class="cp-rd-end">סוף המסמך · {d.name}</div>}
           </div>
         </div>

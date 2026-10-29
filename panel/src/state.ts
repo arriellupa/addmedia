@@ -12,7 +12,10 @@ export type Sheet =
   | { type: "menu"; itemType: "post" | "chat"; item: Post | ChatMsg }
   | { type: "viewer"; post: Post }
   | { type: "student"; then?: () => void }
-  | { type: "attach" };
+  | { type: "attach" }
+  /** AddStudent only: «החשבון שלי» (devices, password), and the set-a-password prompt (403 `password`) */
+  | { type: "account"; section?: "devices" | "password" }
+  | { type: "password"; then?: () => void; reason?: string };
 
 const CHAT_CAP = 300;
 

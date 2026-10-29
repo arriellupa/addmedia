@@ -6,7 +6,7 @@
 //   an article:         the article's own canonical URL (nevo, a journal) or, for an uploaded PDF, the doc's URL
 import { checkTerms, checkText } from "./moderation";
 import { modLog } from "./admin";
-import { consumeCode, getUser, issueCode, tokenFrom, User } from "./auth";
+import { consumeCode, getUser, issueCode, sendMail, tokenFrom, User } from "./auth";
 import { ROOM_RE } from "./canon";
 import { Env, clampStr, fail, json, now, randomId, readJson } from "./util";
 import { getSettings } from "./settings";
@@ -331,7 +331,7 @@ export async function putDocText(req: Request, env: Env, id: string, u: User): P
   return json({ ok: true, sections, chars: body.length });
 }
 
-export async function docFile(env: Env, id: string, viewer?: string | null): Promise<Response> {
+export async function docFile(env: Env, id: string, viewer?: string | null, shownTo: ShownTo = null): Promise<Response> {
   const d = await env.DB.prepare("SELECT r2_key, title, status, file_type, user_id FROM campus_docs WHERE id=?").bind(clampStr(id, 40)).first<any>();
   const mine = !!viewer && d?.user_id === viewer;
   if (!d || !d.file_type || !d.r2_key || !(d.status === "visible" || (d.status === "hold" && mine))) return fail(404, "not_found", "הקובץ לא נמצא.");
@@ -347,8 +347,52 @@ export async function docFile(env: Env, id: string, viewer?: string | null): Pro
       "Content-Security-Policy": "default-src 'none'",
       "X-Content-Type-Options": "nosniff",
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Expose-Headers": "X-Shown-To, Content-Disposition",
+      ...(shownTo ? { "X-Shown-To": encodeURIComponent(JSON.stringify(shownTo)) } : {}),
     },
   });
+}
+
+// ---------- anti-sharing: one reader at a time, and no bulk harvesting ----------
+const BUSY_MS = 90_000;
+const VELOCITY_READS = 40; // in 10 minutes
+const VELOCITY_IPS = 3; // distinct IP hashes in an hour
+const LOCK_MS = 15 * 60_000;
+
+/** records a document/file read and applies the checks: 409 busy, or a velocity lock (423) */
+export async function docReadCheck(env: Env, u: User, deviceId: string | null, ipHash: string): Promise<Response | null> {
+  const t = now();
+  const dev = deviceId || "";
+  const other = await env.DB.prepare("SELECT 1 FROM doc_reads WHERE user_id=? AND at>? AND COALESCE(device_id,'')!=? AND ip_hash!=? LIMIT 1").bind(u.id, t - BUSY_MS, dev, ipHash).first();
+  if (other) return fail(409, "busy", "החשבון בשימוש במכשיר אחר כרגע");
+  await env.DB.prepare("INSERT INTO doc_reads (user_id, device_id, ip_hash, at) VALUES (?,?,?,?)").bind(u.id, deviceId, ipHash, t).run();
+  const [m, h] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) n FROM doc_reads WHERE user_id=? AND at>?").bind(u.id, t - 10 * 60_000).first<{ n: number }>(),
+    env.DB.prepare("SELECT COUNT(DISTINCT ip_hash) n FROM doc_reads WHERE user_id=? AND at>?").bind(u.id, t - 3600_000).first<{ n: number }>(),
+  ]);
+  if ((m?.n ?? 0) > VELOCITY_READS || (h?.n ?? 0) >= VELOCITY_IPS) {
+    const r = await env.DB.prepare("UPDATE users SET locked_until=?, must_reset=1 WHERE id=? AND must_reset=0").bind(t + LOCK_MS, u.id).run();
+    if (r.meta.changes) {
+      await modLog(env, { actor: "auto", action: "velocity_lock", target_type: "user", target_id: u.id, reason: `${m?.n ?? 0} reads/10m, ${h?.n ?? 0} ips/1h` });
+      if (u.email) {
+        await sendMail(env, u.email, "החשבון שלך ב-AddStudent ננעל זמנית",
+          `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:16px;color:#14161a"><p>זיהינו פעילות חריגה בחשבון: קריאה של מסמכים רבים בזמן קצר, או מכמה מקומות.</p><p>החשבון נעול ל-15 דקות, ולצורך ההמשך יש לקבוע סיסמה חדשה דרך «שכחתי סיסמה».</p><p style="color:#6b7280">החשבון אישי. שיתוף סיסמה או מכשיר עם אחר = ביטול המנוי ללא החזר.</p></div>`,
+          "זיהינו פעילות חריגה בחשבון. החשבון נעול ל-15 דקות; לצורך ההמשך יש לקבוע סיסמה חדשה דרך «שכחתי סיסמה».");
+      }
+    }
+    return fail(423, "reset", "זוהתה פעילות חריגה בחשבון. החשבון נעול ל-15 דקות, ולצורך ההמשך יש לקבוע סיסמה חדשה דרך «שכחתי סיסמה».");
+  }
+  return null;
+}
+
+/** hourly: reads older than two hours, dead sessions, dead codes */
+export async function pruneReads(env: Env) {
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM doc_reads WHERE at<?").bind(t - 2 * 3600_000),
+    env.DB.prepare("DELETE FROM sessions WHERE expires_at<?").bind(t),
+    env.DB.prepare("DELETE FROM otp_codes WHERE expires_at<?").bind(t - 3600_000),
+  ]);
 }
 
 export async function updateDoc(req: Request, env: Env, id: string, u: User): Promise<Response> {
@@ -409,11 +453,20 @@ export async function updateDoc(req: Request, env: Env, id: string, u: User): Pr
   return json({ doc: docOut(await getDoc(env, d.id)) });
 }
 
-export async function readDoc(env: Env, id: string, viewer?: string | null): Promise<Response> {
+export type ShownTo = { name: string; email: string | null } | null;
+
+/** the watermark: who this copy is shown to (the student's full name and login email) */
+export async function shownToOf(env: Env, u: User | null): Promise<ShownTo> {
+  if (!u) return null;
+  const sp = await env.DB.prepare("SELECT full_name FROM student_profiles WHERE user_id=?").bind(u.id).first<{ full_name: string }>();
+  return { name: sp?.full_name || u.display_name, email: u.email ?? null };
+}
+
+export async function readDoc(env: Env, id: string, viewer?: string | null, shownTo: ShownTo = null): Promise<Response> {
   const d = await getDoc(env, id);
   const mine = !!viewer && d?.user_id === viewer;
   if (!d || d.body == null || !(d.status === "visible" || (d.status === "hold" && mine))) return fail(404, "not_found", "המסמך לא נמצא.");
-  return json({ doc: docOut(d), body: d.body });
+  return json({ doc: docOut(d), body: d.body, shownTo });
 }
 
 export async function deleteDoc(env: Env, id: string, u: User | null, admin = false): Promise<Response> {

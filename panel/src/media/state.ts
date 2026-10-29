@@ -1,7 +1,7 @@
 // The media page's own state: which mode (command center / campus), which campus place, the follows and the
 // directory of who is online. Rooms, chat, talkbacks and media come from the shared panel state (../state).
 import { batch, computed, signal } from "@preact/signals";
-import { CampusDoc, CampusEvent, CampusPlace, CourseMeta, Coverage, Directory, DirectoryTree, DocKind, EventKind, Follow, Student, api } from "../api";
+import { CampusDoc, CampusEvent, CampusPlace, CourseMeta, Coverage, Directory, DirectoryTree, DocKind, EventKind, Follow, ShownTo, Student, api } from "../api";
 import { me, say, scope, setPage, setScope, page, load, chat, sheet, setWriteGate } from "../state";
 
 export type Mode = "center" | "campus";
@@ -110,6 +110,11 @@ export async function saveStudent(b: { fullName: string; inst: string; faculty: 
 }
 /** a 403 `student` from the server: forget the cached profile, ask, and retry */
 function studentRetry(e: any, retry: () => void): boolean {
+  // a code-only account on the students' site is asked to set a password before its first campus write
+  if (e?.code === "password" && appBase.value === "/student") {
+    sheet.value = { type: "password", then: retry, reason: e?.message };
+    return true;
+  }
   if (e?.code !== "student") return false;
   student.value = null;
   sheet.value = { type: "student", then: retry };
@@ -484,13 +489,13 @@ export function docError(e: any): string {
   return e?.message || "השמירה נכשלה. נסו שוב.";
 }
 
-export async function saveDoc(b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; course?: string }, existing?: CampusDoc): Promise<CampusDoc | null> {
+export async function saveDoc(b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; course?: string }, existing?: CampusDoc, retry?: () => void): Promise<CampusDoc | null> {
   const base = place.value;
   if (!base) return null;
   const pl: CampusPlace = b.course ? { ...base, course: b.course } : base;
   try {
     if (existing) {
-      const r = await api.updateDoc(existing.id, { title: b.title, body: b.body, ...(b.link !== undefined ? { link: b.link } : {}), ...(b.lecturer !== undefined ? { lecturer: b.lecturer } : {}), ...(b.lessonDate !== undefined ? { lessonDate: b.lessonDate } : {}), ...(b.lessonNo !== undefined ? { lessonNo: b.lessonNo } : {}) });
+      const r = await api.updateDoc(existing.id, { title: b.title, body: b.body, ...(b.link !== undefined ? { link: b.link } : {}), ...(b.lecturer !== undefined ? { lecturer: b.lecturer } : {}), ...(b.lessonDate !== undefined ? { lessonDate: b.lessonDate } : {}), ...(b.lessonNo !== undefined ? { lessonNo: b.lessonNo } : {}), ...(b.topic !== undefined ? { topic: b.topic } : {}), ...(b.published !== undefined ? { published: b.published } : {}) });
       docs.value = docs.value.map((d) => (d.id === existing.id ? r.doc : d));
       bodyCache.set(existing.id, b.body);
       say("השינויים נשמרו.");
@@ -506,7 +511,7 @@ export async function saveDoc(b: { kind: DocKind; title: string; body: string; l
     say(b.kind === "article" ? "המאמר נוסף לקורס." : b.kind === "exercise" ? "התרגול פורסם." : "הסיכום פורסם.");
     return r.doc;
   } catch (e: any) {
-    if (studentRetry(e, () => saveDoc(b, existing))) return null;
+    if (studentRetry(e, retry || (() => saveDoc(b, existing)))) return null;
     say(docError(e), "err");
     return null;
   }
@@ -514,7 +519,7 @@ export async function saveDoc(b: { kind: DocKind; title: string; body: string; l
 
 /** AddStudent: a Word / PDF summary. The file goes up as it is; the text is extracted on the device and posted after,
  *  so the search and the reader work; when the extraction fails the file is still published. */
-export async function saveDocFile(m: { title: string; course: string; topic?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; published?: string }, file: File, onProgress?: (stage: "upload" | "extract" | "text", done?: number, total?: number) => void): Promise<{ doc: CampusDoc; textOk: boolean } | null> {
+export async function saveDocFile(m: { title: string; course: string; topic?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; published?: string }, file: File, onProgress?: (stage: "upload" | "extract" | "text", done?: number, total?: number) => void, text?: string, retry?: () => void): Promise<{ doc: CampusDoc; textOk: boolean } | null> {
   const base = place.value;
   if (!base) return null;
   const type: "pdf" | "docx" = /\.pdf$/i.test(file.name) || file.type === "application/pdf" ? "pdf" : "docx";
@@ -523,7 +528,7 @@ export async function saveDocFile(m: { title: string; course: string; topic?: st
     onProgress?.("upload");
     doc = (await api.createDocFile({ ...base, course: m.course }, m, file, type)).doc;
   } catch (e: any) {
-    if (studentRetry(e, () => {})) return null;
+    if (studentRetry(e, retry || (() => {}))) return null;
     say(docError(e), "err");
     return null;
   }
@@ -531,9 +536,12 @@ export async function saveDocFile(m: { title: string; course: string; topic?: st
   loadDirTree();
   let textOk = false;
   try {
-    onProgress?.("extract", 0, 1);
-    const im = await import("./importText");
-    const text = await im.importFile(file, (a, b) => onProgress?.("extract", a, b));
+    // the editor already holds the (edited) text: post it as it is; otherwise extract it here
+    if (text === undefined) {
+      onProgress?.("extract", 0, 1);
+      const im = await import("./importText");
+      text = await im.importFile(file, (a, b) => onProgress?.("extract", a, b));
+    }
     if (text.trim().length >= 20) {
       onProgress?.("text");
       const r = await api.putDocText(doc.id, text.slice(0, 60_000));
@@ -550,12 +558,16 @@ export async function saveDocFile(m: { title: string; course: string; topic?: st
 
 /** the bodies already fetched (the list carries only sections and counts) */
 export const bodyCache = new Map<string, string>();
+/** who the server said it showed each document to (the watermark); the signed-in person when it said nothing */
+export const shownToCache = new Map<string, ShownTo>();
+export const shownToOf = (id: string): ShownTo | null => shownToCache.get(id) || (me.value ? { name: me.value.name, email: me.value.email || "" } : null);
 export async function fetchBody(id: string): Promise<string> {
   const c = bodyCache.get(id);
   if (c !== undefined) return c;
   try {
     const r = await api.getDoc(id);
     bodyCache.set(id, r.body);
+    if (r.shownTo) shownToCache.set(id, r.shownTo);
     return r.body;
   } catch (e: any) {
     if (e?.status === 402 || e?.code === "plan") showPaywall(e);

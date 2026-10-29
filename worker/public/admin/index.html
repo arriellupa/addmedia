@@ -58,7 +58,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const when = (t) => (t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "");
 const REASON = { spam: "ספאם", harassment: "הטרדה", hate: "שנאה", violence: "אלימות", sexual: "מיני", intimate: "אינטימי ללא הסכמה", minor: "קטינים", privacy: "פרטיות", copyright: "זכויות יוצרים", other: "אחר" };
-const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית", takedown: "הוסר לבקשת בעל זכויות", course_meta: "פרטי קורס עודכנו", remove_doc: "מסמך הוסר", remove_event: "אירוע הוסר", create_doc: "מסמך נכתב", edit_doc: "מסמך נערך", student_profile: "פרופיל סטודנט", hold: "הוקפא לאחר בקשת הסרה", restore: "הושב", grant_campus: "מנוי קמפוס הוענק" };
+const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית", takedown: "הוסר לבקשת בעל זכויות", course_meta: "פרטי קורס עודכנו", remove_doc: "מסמך הוסר", remove_event: "אירוע הוסר", create_doc: "מסמך נכתב", edit_doc: "מסמך נערך", student_profile: "פרופיל סטודנט", hold: "הוקפא לאחר בקשת הסרה", restore: "הושב", grant_campus: "מנוי קמפוס הוענק", unlock: "נעילה שוחררה", velocity_lock: "נעילת מהירות (קריאות רבות)" };
 const KIND = { summary: "סיכום", exercise: "תרגול", article: "מאמר" };
 const ROLE = { lecturer: "מרצה", institution: "מוסד", author: "מחבר/ת", other: "אחר" };
 let token = sessionStorage.getItem("am_admin") || "";
@@ -122,7 +122,7 @@ const VIEWS = {
   async users() {
     const q = $("#uq")?.value || "";
     const { users } = await api("users?q=" + encodeURIComponent(q));
-    return `<div class="row" style="margin-top:16px"><input id="uq" placeholder="חיפוש לפי שם או מזהה" value="${esc(q)}"><button class="btn btn-secondary" id="us">חיפוש</button></div><table style="margin-top:12px"><tr><th>שם</th><th>סטודנט</th><th>מזהה</th><th>הצטרף</th><th>העלאות</th><th>פסילות</th><th>קמפוס עד</th><th></th></tr>${users.map((u) => `<tr data-id="${esc(u.id)}"><td>${esc(u.display_name)}</td><td class="small">${u.full_name ? `${esc(u.full_name)}<br>${esc(u.inst)} · ${esc(u.faculty)} · שנה ${u.year} · ${esc(u.track)}${u.email ? `<br><span dir="ltr">${esc(u.email)}</span>` : ""}` : ""}</td><td class="small" dir="ltr">${esc(u.id)}</td><td>${when(u.created_at)}</td><td>${u.credits_media}</td><td>${u.strikes || 0}</td><td>${esc(u.campus_until || "")}</td><td>${u.banned ? '<button class="btn btn-secondary" data-a="unban">ביטול השעיה</button>' : '<button class="btn btn-danger" data-a="ban">השעיה</button> <button class="btn btn-secondary" data-a="credit">+5 העלאות</button> <button class="btn btn-secondary" data-a="campus">קמפוס לסמסטר</button>'}</td></tr>`).join("")}</table>`;
+    return `<div class="row" style="margin-top:16px"><input id="uq" placeholder="חיפוש לפי שם או מזהה" value="${esc(q)}"><button class="btn btn-secondary" id="us">חיפוש</button></div><table style="margin-top:12px"><tr><th>שם</th><th>סטודנט</th><th>מזהה</th><th>הצטרף</th><th>העלאות</th><th>פסילות</th><th>קמפוס עד</th><th>סיסמה</th><th></th></tr>${users.map((u) => `<tr data-id="${esc(u.id)}"><td>${esc(u.display_name)}</td><td class="small">${u.full_name ? `${esc(u.full_name)}<br>${esc(u.inst)} · ${esc(u.faculty)} · שנה ${u.year} · ${esc(u.track)}${u.email ? `<br><span dir="ltr">${esc(u.email)}</span>` : ""}` : ""}</td><td class="small" dir="ltr">${esc(u.id)}</td><td>${when(u.created_at)}</td><td>${u.credits_media}</td><td>${u.strikes || 0}</td><td>${esc(u.campus_until || "")}</td><td>${u.has_password ? "✓" : "—"}${u.must_reset ? ' <span class="tag red">נעילת מהירות</span>' : u.locked_until && u.locked_until > Date.now() ? ' <span class="tag red">נעול</span>' : ""}${u.must_reset || (u.locked_until && u.locked_until > Date.now()) ? ' <button class="btn btn-secondary" data-a="unlock">שחרור</button>' : ""}</td><td>${u.banned ? '<button class="btn btn-secondary" data-a="unban">ביטול השעיה</button>' : '<button class="btn btn-danger" data-a="ban">השעיה</button> <button class="btn btn-secondary" data-a="credit">+5 העלאות</button> <button class="btn btn-secondary" data-a="campus">קמפוס לסמסטר</button>'}</td></tr>`).join("")}</table>`;
   },
   async ads() {
     const { ads } = await api("ads");
@@ -244,6 +244,7 @@ const BIND = {
       if (a === "unban") await api("users/" + id, { method: "POST", body: { ban: false } });
       if (a === "credit") await api("credits", { method: "POST", body: { userId: id, media: 5 } });
       if (a === "campus") await api("campus/grant", { method: "POST", body: { userId: id, days: 182 } });
+      if (a === "unlock") await api("users/" + id, { method: "POST", body: { unlock: true, note: prompt("נימוק:") || "" } });
       render();
     };
   },

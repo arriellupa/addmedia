@@ -12,9 +12,25 @@ let token: string | null = null;
 export const setToken = (t: string | null) => (token = t);
 export const getToken = () => token;
 
+/** this browser's id, kept in localStorage and sent as `X-Device` on every call (the server counts active devices) */
+export function deviceId(): string {
+  try {
+    let id = localStorage.getItem("am_device");
+    if (!id) {
+      id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem("am_device", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
 async function call<T = any>(path: string, opts: { method?: string; body?: unknown; raw?: Blob; type?: string } = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const dev = deviceId();
+  if (dev) headers["X-Device"] = dev;
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (opts.raw) headers["Content-Type"] = opts.type || opts.raw.type;
   let r: Response;
@@ -87,6 +103,8 @@ export interface Me {
   campusUntil?: string | null;
   /** items of mine on hold after a takedown request */
   holds?: number;
+  /** AddStudent: whether a password is set (code-only accounts are asked to set one) */
+  hasPassword?: boolean;
 }
 /** the student's identification, shown to the cohort as «שם · פקולטה · שנה» */
 export interface Student { fullName: string; email?: string; inst: string; faculty: string; faculty2?: string | null; year: number; track: string; createdAt?: number; updatedAt?: number }
@@ -156,7 +174,11 @@ export interface CampusDoc {
   published?: string | null;
   /** an uploaded Word / PDF file, when the summary is a file */
   file?: { url: string; type: "pdf" | "docx"; size: number } | null;
+  track?: string | null;
 }
+/** the viewer, as the server names them on a document read (printed as the watermark) */
+export interface ShownTo { name: string; email: string }
+export interface Device { id: string; name: string; lastSeen: number | string | null; current: boolean }
 export interface SearchFilters { q?: string; year?: number; course?: string; lecturer?: string; from?: string; to?: string }
 export interface DocMeta { course?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string }
 export interface DirectoryTree { courses?: { course: string | null; n?: number; lecturers: { lecturer: string | null; name?: string | null; n: number; lessons: { date: string | null; n: number; topics?: string[] }[] }[] }[] }
@@ -195,13 +217,13 @@ export const api = {
   campusDocs: (pl: CampusPlace, kind?: DocKind) => call<{ docs: CampusDoc[]; title: string; url: string; coverage?: Coverage }>(`/v1/campus/docs?${placeQ(pl, kind ? { kind } : {})}`),
   /** a text document: the student's own words (`author: true` is the declaration); an article carries a link too */
   createDoc: (pl: CampusPlace, b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; author: true }) => call<{ doc: CampusDoc }>(`/v1/campus/docs?${placeQ(pl)}`, { method: "POST", body: b }),
-  updateDoc: (id: string, b: { title?: string; body?: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number | null }) => call<{ doc: CampusDoc }>(`/v1/campus/docs/${id}`, { method: "PUT", body: b }),
+  updateDoc: (id: string, b: { title?: string; body?: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number | null; topic?: string; published?: string }) => call<{ doc: CampusDoc }>(`/v1/campus/docs/${id}`, { method: "PUT", body: b }),
   /** AddStudent: a Word / PDF summary — the raw file, then the text extracted on the device */
   createDocFile: (pl: CampusPlace, m: DocMeta & { title: string }, file: Blob, type: "pdf" | "docx") =>
     call<{ doc: CampusDoc }>(`/v1/campus/docs/file?${placeQ({ ...pl, course: m.course || pl.course }, { title: m.title, author: "1", ...(m.lecturer ? { lecturer: m.lecturer } : {}), ...(m.lessonDate ? { lessonDate: m.lessonDate } : {}), ...(m.lessonNo ? { lessonNo: String(m.lessonNo) } : {}), ...(m.topic ? { topic: m.topic } : {}), ...(m.published ? { published: m.published } : {}) })}`, { method: "POST", raw: file, type: type === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
   putDocText: (id: string, text: string) => call<{ ok: boolean; sections?: DocSection[] }>(`/v1/campus/docs/${id}/text`, { method: "POST", raw: new Blob([text], { type: "text/plain" }), type: "text/plain; charset=utf-8" }),
   docFileUrl: (id: string) => `${API_BASE}/v1/campus/docs/${id}/file`,
-  getDoc: (id: string) => call<{ doc: CampusDoc; body: string }>(`/v1/campus/docs/${id}`),
+  getDoc: (id: string) => call<{ doc: CampusDoc; body: string; shownTo?: ShownTo }>(`/v1/campus/docs/${id}`),
   deleteDoc: (id: string) => call(`/v1/campus/docs/${id}`, { method: "DELETE" }),
   campusSearch: (pl: CampusPlace, q: string) => call<{ hits: SearchHit[] }>(`/v1/campus/search?${placeQ(pl, { q })}`),
   /** AddStudent: free text and/or directory filters over a faculty (year optional) */
@@ -226,8 +248,20 @@ export const api = {
   report: (roomId: string, itemType: "post" | "chat", itemId: string, reason: string, details?: string) =>
     call<{ ok: boolean; hidden: boolean; sla: string }>("/v1/report", { method: "POST", body: { roomId, itemType, itemId, reason, details } }),
   authStart: (email: string) => call<{ sent: boolean; devCode?: string }>("/v1/auth/start", { method: "POST", body: { email } }),
-  authVerify: (email: string, code: string) => call<{ token: string; user: Me }>("/v1/auth/verify", { method: "POST", body: { email, code } }),
+  authVerify: (email: string, code: string, password?: string) => call<{ token: string; user: Me }>("/v1/auth/verify", { method: "POST", body: { email, code, ...(password ? { password } : {}) } }),
   logout: () => call("/v1/auth/logout", { method: "POST" }),
+  // ---- AddStudent: password sign-in and devices (contract 2026-10-29 18:44) ----
+  /** sign-up: the email code follows; `authVerify(email, code, password)` completes it */
+  register: (email: string, password: string, name: string) => call<{ pending: boolean; devCode?: string }>("/v1/auth/register", { method: "POST", body: { email, password, name } }),
+  /** a known device signs in at once; a new one gets `needCode` and verifies the email code */
+  login: (email: string, password: string) => call<{ token?: string; user?: Me; needCode?: boolean; devCode?: string }>("/v1/auth/login", { method: "POST", body: { email, password } }),
+  forgotPassword: (email: string) => call<{ sent?: boolean; ok?: boolean; devCode?: string }>("/v1/auth/password/forgot", { method: "POST", body: { email } }),
+  /** by the emailed link's token, or by the email code */
+  resetPassword: (b: { token: string; password: string } | { email: string; code: string; password: string }) => call<{ ok?: boolean; token?: string; user?: Me }>("/v1/auth/password/reset", { method: "POST", body: b }),
+  /** set (first time) or change the password of the signed-in account; other devices are signed out */
+  setPassword: (password: string, current?: string) => call<{ ok: boolean; hasPassword?: boolean }>("/v1/auth/password", { method: "POST", body: { password, ...(current ? { old: current } : {}) } }),
+  devices: () => call<{ devices: Device[] }>("/v1/me/devices"),
+  removeDevice: (id: string) => call("/v1/me/devices/" + encodeURIComponent(id), { method: "DELETE" }),
   me: () => call<{ user: Me; items: any[]; blocks: string[] }>("/v1/me"),
   updateMe: (b: { name?: string; acceptTerms?: boolean }) => call<{ user: Me }>("/v1/me", { method: "POST", body: b }),
   deleteMe: () => call("/v1/me", { method: "DELETE" }),

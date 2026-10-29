@@ -1,19 +1,19 @@
 // AddMedia API — Cloudflare Worker entry
 import { handleAdmin, modLog } from "./admin";
-import { User, getUser, logout, publicUser, startAuth, tokenFrom, verifyAuth } from "./auth";
+import { User, changePassword, dropDevice, forgotPassword, getUser, listDevices, loginAuth, logout, publicUser, registerAuth, resetPassword, startAuth, tokenFrom, verifyAuth, deviceOf, ipHashOf } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
-import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, createDocFile, createEvent, deleteDoc, deleteEvent, directory, docFile, putDocText, existingRef, follow, myMaterials, recordRef, refOfMaterial, refRoomsMax, roomsOfMaterial, setRefsStatus, getCourseMeta, getStudent, grantPlan, hasStudent, holdsOf, lecturerArchive, listDocs, listEvents, listFollows, placeOf, placeTitle, placeUrl, putCourseMeta, putStudent, planOf, quotaOf, readDoc, searchDocs, slug, takedownNotice, takedownStart, updateDoc } from "./campus";
+import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, createDocFile, docReadCheck, pruneReads, shownToOf, createEvent, deleteDoc, deleteEvent, directory, docFile, putDocText, existingRef, follow, myMaterials, recordRef, refOfMaterial, refRoomsMax, roomsOfMaterial, setRefsStatus, getCourseMeta, getStudent, grantPlan, hasStudent, holdsOf, lecturerArchive, listDocs, listEvents, listFollows, placeOf, placeTitle, placeUrl, putCourseMeta, putStudent, planOf, quotaOf, readDoc, searchDocs, slug, takedownNotice, takedownStart, updateDoc } from "./campus";
 import { debugPage, debugVia } from "./debug";
 import { getSettings, publicSettings } from "./settings";
 import { checkImage, checkPost, checkText } from "./moderation";
 import type { RoomMeta } from "./room";
-import { CORS, DAY, Env, clampStr, fail, idSecret, isTrue, json, now, randomId, readJson } from "./util";
+import { CORS, DAY, Env, TERMS_VERSION, clampStr, fail, idSecret, isTrue, json, now, randomId, readJson } from "./util";
 
 export { PageRoom } from "./room";
 export { Directory } from "./directory";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-29.3";
+const VERSION = "2026-10-29.4";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 const STUDENT_HOSTS = new Set(["addstudent.com", "www.addstudent.com", "addstudent.noaplate.com"]);
@@ -118,12 +118,20 @@ async function adsFor(env: Env, r: Resolved) {
   return { top: rows.find((a) => a.placement === "top") ? map(rows.find((a) => a.placement === "top")) : null, feed: rows.filter((a) => a.placement === "feed").slice(0, 2).map(map) };
 }
 
+const RESET_MSG = "זוהתה פעילות חריגה בחשבון. לצורך ההמשך יש לקבוע סיסמה חדשה דרך «שכחתי סיסמה».";
+const PASSWORD_MSG = "קבעו סיסמה לחשבון כדי להמשיך";
+const isStudentHost = (url: URL) => STUDENT_HOSTS.has(url.hostname);
+
 async function requireUser(env: Env, req: Request, url: URL): Promise<User | Response> {
-  const u = await getUser(env, tokenFrom(req, url));
+  const u = await getUser(env, tokenFrom(req, url), req);
   if (!u) return fail(401, "auth", "צריך להתחבר כדי להשתתף.");
   if (u.banned) return fail(403, "banned", "החשבון הושעה בשל הפרת כללי הקהילה.");
+  if (u.must_reset) return fail(423, "reset", RESET_MSG);
   return u;
 }
+
+/** the students' product needs a password on the account (a code-only AddMedia account is asked to set one) */
+const needsPassword = (u: User) => !u.pass_hash;
 
 const isNewUser = (u: User) => now() - u.created_at < DAY;
 
@@ -139,14 +147,17 @@ async function requireMember(env: Env, req: Request, url: URL): Promise<User | R
 async function requireStudent(env: Env, req: Request, url: URL): Promise<User | Response> {
   const u = await requireMember(env, req, url);
   if (u instanceof Response) return u;
+  if (needsPassword(u)) return fail(403, "password", PASSWORD_MSG);
   if (!(await hasStudent(env, u.id))) return fail(403, "student", STUDENT_MSG);
   return u;
 }
 
 /** reading the campus (directory, documents, search) needs an active plan or the 14-day trial */
 async function requirePlan(env: Env, req: Request, url: URL): Promise<User | null | Response> {
-  const u = await getUser(env, tokenFrom(req, url));
+  const u = await getUser(env, tokenFrom(req, url), req);
   if (u?.banned) return fail(403, "banned", "החשבון הושעה בשל הפרת כללי הקהילה.");
+  if (u?.must_reset) return fail(423, "reset", RESET_MSG);
+  if (u && isStudentHost(url) && needsPassword(u)) return fail(403, "password", PASSWORD_MSG);
   const plan = await planOf(env, u);
   if (!plan.active) return fail(402, "plan", PLAN_MSG, { plan, signedIn: !!u });
   return u;
@@ -214,7 +225,8 @@ async function websocket(req: Request, env: Env, url: URL): Promise<Response> {
     headers.set("X-New", isNewUser(u) ? "1" : "0");
     headers.set("X-Can-Post", u.terms_accepted_at && commentsAllowed(r) ? "1" : "0");
     // campus rooms: only identified students write
-    if (r.c.host === CAMPUS_HOST && !(await hasStudent(env, u.id))) headers.set("X-Need-Student", "1");
+    if (r.c.host === CAMPUS_HOST && needsPassword(u)) headers.set("X-Need-Student", "password");
+    else if (r.c.host === CAMPUS_HOST && !(await hasStudent(env, u.id))) headers.set("X-Need-Student", "1");
   }
   headers.set("X-Meta", encodeURIComponent(JSON.stringify(r.meta)));
   const fwd = new URL(req.url);
@@ -230,6 +242,7 @@ async function createPost(req: Request, env: Env, url: URL): Promise<Response> {
   const r = await resolve(env, b);
   if (r instanceof Response) return r;
   if (!commentsAllowed(r)) return fail(403, "disabled", "התגובות כבויות בדף הזה.");
+  if (r.c.host === CAMPUS_HOST && needsPassword(u)) return fail(403, "password", PASSWORD_MSG);
   if (r.c.host === CAMPUS_HOST && !(await hasStudent(env, u.id))) return fail(403, "student", STUDENT_MSG);
   const text = clampStr(b.body, 2000);
   if (text.length < 2) return fail(400, "empty", "התגובה קצרה מדי.");
@@ -519,7 +532,7 @@ export default {
     const p = url.pathname;
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     try {
-      if (p === "/v1/health") return json({ ok: true, at: now(), v: VERSION });
+      if (p === "/v1/health") return json({ ok: true, at: now(), v: VERSION, terms: TERMS_VERSION });
       if (p === "/v1/debug") return await debugPage(req, env, url);
       if (p === "/v1/directory") {
         const campus = url.searchParams.get("campus");
@@ -568,7 +581,11 @@ export default {
       if (dfm && dfm[2] === "file" && req.method === "GET") {
         const viewer = await requirePlan(env, req, url);
         if (viewer instanceof Response) return viewer;
-        return await docFile(env, dfm[1], viewer?.id);
+        if (viewer) {
+          const bad = await docReadCheck(env, viewer, viewer.session?.deviceId ?? deviceOf(req).id, await ipHashOf(env, req));
+          if (bad) return bad;
+        }
+        return await docFile(env, dfm[1], viewer?.id, await shownToOf(env, viewer));
       }
       if (dfm && dfm[2] === "text" && req.method === "POST") {
         const u = await requireStudent(env, req, url);
@@ -579,7 +596,11 @@ export default {
       if (dm && req.method === "GET") {
         const viewer = await requirePlan(env, req, url);
         if (viewer instanceof Response) return viewer;
-        return await readDoc(env, dm[1], viewer?.id);
+        if (viewer) {
+          const bad = await docReadCheck(env, viewer, viewer.session?.deviceId ?? deviceOf(req).id, await ipHashOf(env, req));
+          if (bad) return bad;
+        }
+        return await readDoc(env, dm[1], viewer?.id, await shownToOf(env, viewer));
       }
       if (dm && req.method === "PUT") {
         const u = await requireStudent(env, req, url);
@@ -663,7 +684,27 @@ export default {
       if (p === "/v1/media" && req.method === "POST") return await uploadMedia(req, env, url);
       if (p === "/v1/report" && req.method === "POST") return await report(req, env, url);
       if (p === "/v1/auth/start" && req.method === "POST") return await startAuth(env, await readJson(req));
-      if (p === "/v1/auth/verify" && req.method === "POST") return await verifyAuth(env, await readJson(req));
+      if (p === "/v1/auth/verify" && req.method === "POST") return await verifyAuth(env, req, await readJson(req));
+      if (p === "/v1/auth/register" && req.method === "POST") return await registerAuth(env, await readJson(req));
+      if (p === "/v1/auth/login" && req.method === "POST") return await loginAuth(env, req, await readJson(req));
+      if (p === "/v1/auth/password/forgot" && req.method === "POST") return await forgotPassword(env, await readJson(req));
+      if (p === "/v1/auth/password/reset" && req.method === "POST") return await resetPassword(env, req, await readJson(req));
+      if (p === "/v1/auth/password" && req.method === "POST") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return await changePassword(env, u, await readJson(req));
+      }
+      if (p === "/v1/me/devices" && req.method === "GET") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return json({ devices: await listDevices(env, u), max: 2 });
+      }
+      const dvm = p.match(/^\/v1\/me\/devices\/([A-Za-z0-9_-]{8,64})$/);
+      if (dvm && req.method === "DELETE") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return await dropDevice(env, u, dvm[1]);
+      }
       if (p === "/v1/auth/logout" && req.method === "POST") return await logout(env, tokenFrom(req, url));
       if (p === "/v1/me") return await me(req, env, url);
       if (p === "/v1/me/blocks" && req.method === "POST") return await block(req, env, url);
@@ -716,5 +757,9 @@ export default {
       console.error("unhandled", e?.stack || e);
       return fail(500, "server", "שגיאה זמנית בשרת. נסו שוב.");
     }
+  },
+  // hourly: the read log, dead sessions and codes
+  async scheduled(_ev: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(pruneReads(env));
   },
 } satisfies ExportedHandler<Env>;

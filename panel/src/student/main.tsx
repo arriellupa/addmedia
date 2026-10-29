@@ -26,11 +26,16 @@ async function start() {
   loadFollows();
 }
 
+// the follows and the student profile follow the PERSON, not every change of the user object (a password set,
+// a name change): an open editor keeps its profile
+let lastUid: string | null | undefined;
 effect(() => {
-  me.value;
+  const uid = me.value?.id ?? null;
+  if (uid === lastUid) return;
+  lastUid = uid;
   loadFollows();
   student.value = undefined;
-  if (me.value) loadStudent(true);
+  if (uid) loadStudent(true);
 });
 effect(() => {
   place.value;

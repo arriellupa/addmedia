@@ -19,7 +19,8 @@ export const now = () => Date.now();
 export const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Image-Type",
+  "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Image-Type,X-Device",
+  "Access-Control-Expose-Headers": "X-Shown-To,Content-Disposition",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -85,3 +86,6 @@ export function clampStr(v: unknown, max: number): string {
 export const isTrue = (v?: string) => v === "true" || v === "1";
 
 export const DAY = 24 * 3600 * 1000;
+
+/** the date on /terms/: a sign-up accepts this version */
+export const TERMS_VERSION = "2026-10-29";

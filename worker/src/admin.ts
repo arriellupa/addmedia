@@ -5,7 +5,7 @@ import { getSettings, putSettings } from "./settings";
 import { Env, clampStr, fail, json, now, randomId, readJson } from "./util";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
-const USER_COLS = "SELECT u.id, u.display_name, u.created_at, u.banned, u.credits_media, u.strikes, u.email, u.campus_until, s.full_name, s.inst, s.faculty, s.faculty2, s.year, s.track FROM users u LEFT JOIN student_profiles s ON s.user_id=u.id";
+const USER_COLS = "SELECT u.id, u.display_name, u.created_at, u.banned, u.credits_media, u.strikes, u.email, u.campus_until, u.locked_until, u.must_reset, (u.pass_hash IS NOT NULL) AS has_password, s.full_name, s.inst, s.faculty, s.faculty2, s.year, s.track FROM users u LEFT JOIN student_profiles s ON s.user_id=u.id";
 
 async function log(env: Env, e: { action: string; target_type: string; target_id: string; room_id?: string | null; report_id?: string | null; reason?: string | null; actor?: string }) {
   await env.DB.prepare(
@@ -104,6 +104,12 @@ export async function handleAdmin(req: Request, env: Env, url: URL): Promise<Res
 
   if (res === "users" && m === "POST" && id) {
     const b = await readJson(req);
+    if (b.unlock) {
+      // clears a password lock or a velocity lock (the person keeps the password)
+      await env.DB.prepare("UPDATE users SET locked_until=NULL, pw_fails=0, must_reset=0 WHERE id=?").bind(id).run();
+      await log(env, { action: "unlock", target_type: "user", target_id: id, reason: clampStr(b.note, 500) || null });
+      return json({ ok: true });
+    }
     const ban = !!b.ban;
     await env.DB.prepare("UPDATE users SET banned=? WHERE id=?").bind(ban ? 1 : 0, id).run();
     if (ban) await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(id).run();
