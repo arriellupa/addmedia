@@ -16,7 +16,7 @@ async function lastPlace(): Promise<string> {
 import { bundle, me, page, presence, scope, setScope, sheet, status, tab, visibleChat, type Tab } from "../state";
 import { AttachButton } from "./Attach";
 import { Avatar, LiveDot } from "./Bits";
-import { GoBar } from "./GoBar";
+import { GoBar, openReading } from "./GoBar";
 
 /** The Clip — signature tab on the panel's top edge: live dot, who's here, recent faces. */
 export function Clip() {
@@ -55,6 +55,19 @@ export function Clip() {
       </div>
     </div>
   );
+}
+
+/** In the web panel the reading window follows the scope: «כל האתר» opens the site's home there, «הדף הזה» brings the page back. */
+function goScope(s: "page" | "site") {
+  const p = page.value;
+  if (host.kind === "web" && p) {
+    if (s === "site") {
+      try {
+        openReading(new URL(p.url).origin + "/");
+      } catch {}
+    } else if (scope.value !== "page") openReading(p.url);
+  }
+  setScope(s);
 }
 
 export function Header() {
@@ -125,10 +138,10 @@ export function Header() {
         {host.kind === "web" && <GoBar compact />}
         {b && !b.disabled && (
           <div class="scope" role="tablist" aria-label="היקף השיחה">
-            <button role="tab" aria-selected={scope.value === "page"} class={scope.value === "page" ? "on" : ""} onClick={() => setScope("page")}>
+            <button role="tab" aria-selected={scope.value === "page"} class={scope.value === "page" ? "on" : ""} title={host.kind === "web" ? "החדר של הדף הזה; חלון הקריאה חוזר אליו" : "החדר של הדף הזה"} onClick={() => goScope("page")}>
               <FileI size={15} /> הדף הזה
             </button>
-            <button role="tab" aria-selected={scope.value === "site"} class={scope.value === "site" ? "on" : ""} onClick={() => setScope("site")}>
+            <button role="tab" aria-selected={scope.value === "site"} class={scope.value === "site" ? "on" : ""} title={host.kind === "web" ? "החדר של כל האתר; חלון הקריאה עובר לאתר" : "החדר של כל האתר"} onClick={() => goScope("site")}>
               <Globe size={15} /> כל <bdi dir="ltr">{b.page.site}</bdi>
               {scope.value === "page" && b.other.presence > 0 && (
                 <span class="scope-n num">
