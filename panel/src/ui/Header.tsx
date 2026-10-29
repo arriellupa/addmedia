@@ -92,8 +92,17 @@ export function Header() {
               </a>
             )}
             {p && <AttachButton compact />}
-            {host.kind === "extension" && (
-              <button class="icon-btn" aria-label="הקמפוס: מאמרים וסיכומים לפי פקולטה ושנה" title="הקמפוס" onClick={async () => host.open((API_BASE || "https://addmedia.noaplate.com") + (await lastPlace()))}>
+            {host.kind !== "mobile" && (
+              <button
+                class="icon-btn campus-btn"
+                aria-label="לגרסת הסטודנטים: סיכומים ומאמרים לפי פקולטה ושנה"
+                title="לגרסת הסטודנטים"
+                onClick={async () => {
+                  const url = (API_BASE || "https://addmedia.noaplate.com") + (await lastPlace());
+                  if (host.kind === "web") location.href = url; // the same tab: the campus is the same app
+                  else host.open(url);
+                }}
+              >
                 <Cap />
               </button>
             )}

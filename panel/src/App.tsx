@@ -2,7 +2,7 @@ import { effect } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import { findUrl, host } from "./host";
 import { GoBar } from "./ui/GoBar";
-import { Copy, Lock, Refresh } from "./icons";
+import { Cap, Copy, Lock, Refresh } from "./icons";
 import { bundle, load, loadError, loading, page, presence, setPage, tab } from "./state";
 import { BrandMark, Skeleton, Sponsored, Toast } from "./ui/Bits";
 import { ChatView } from "./ui/Chat";
@@ -128,6 +128,9 @@ function NoPage() {
         </button>
       )}
       {err && <div class="form-err">{err}</div>}
+      <a class="btn btn-secondary paste-btn" href="/media/campus">
+        <Cap size={18} /> לגרסת הסטודנטים
+      </a>
       <a class="fine" href="/mobile/">איך מוסיפים כפתור AddMedia לדפדפן בטלפון</a>
     </div>
   );
