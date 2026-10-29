@@ -285,6 +285,15 @@ export function Editor() {
   const courseOk = !lesson || slug(course).length >= 2;
   const dateOk = !lessonDate || /^\d{4}-\d{2}-\d{2}$/.test(lessonDate);
   const ok = title.trim().length >= 3 && n >= MIN && n <= MAX && linkOk && courseOk && dateOk && (author || !!existing);
+  // what still keeps the button off — said next to it, so nobody hunts for the reason
+  const missing = [
+    title.trim().length < 3 ? "כותרת" : null,
+    !courseOk ? "קורס" : null,
+    n < MIN ? `עוד ${MIN - n} תווים` : n > MAX ? "קיצור הטקסט" : null,
+    !linkOk ? "קישור תקין" : null,
+    !dateOk ? "תאריך תקין" : null,
+    !(author || !!existing) ? "הצהרת המחבר" : null,
+  ].filter(Boolean) as string[];
   const submit = async () => {
     if (!ok || busy) return;
     setBusy(true);
@@ -357,7 +366,12 @@ export function Editor() {
         <span class={`cp-ed-count num ${n > MAX ? "over" : n < MIN ? "under" : ""}`} aria-live="polite">
           {n.toLocaleString("he-IL")} / {MAX.toLocaleString("he-IL")}
         </span>
-        <button class="btn btn-primary" disabled={!ok || busy} onClick={submit}>
+        {!ok && !busy && missing.length > 0 && (
+          <span class="cp-ed-missing" role="status">
+            חסר: {missing.join(" · ")}
+          </span>
+        )}
+        <button class={`btn btn-primary ${ok ? "cp-ed-ready" : ""}`} disabled={!ok || busy} onClick={submit} title={ok ? undefined : "חסר: " + missing.join(", ")}>
           {busy ? "שומר…" : existing ? "שמירה" : "פרסום"}
         </button>
       </header>

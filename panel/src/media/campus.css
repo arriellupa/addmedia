@@ -538,3 +538,8 @@
   .mc .scrim { z-index: 80; }
   .mc .toast { position: fixed; z-index: 90; }
 }
+
+/* the editor's publish button: a visible reason while it is off, a glow when it is ready */
+.cp-ed-missing { font-size: 12px; line-height: 16px; color: var(--c-warning); max-width: 260px; text-align: end; }
+.btn.cp-ed-ready { box-shadow: 0 0 0 3px var(--c-accent-tint), 0 6px 18px -6px var(--c-accent); }
+.btn:disabled { opacity: 0.45; }
