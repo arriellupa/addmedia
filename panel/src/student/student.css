@@ -282,3 +282,10 @@
     .cp-reading .st-bar { display: none; }
   }
 }
+
+/* the attached file's preview inside the editor */
+.st-preview { border: 1px solid var(--c-border); border-radius: var(--r-md); margin: 6px 0 10px; overflow: hidden; background: var(--c-surface); }
+.st-preview-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: var(--fs-label); font-weight: 600; color: var(--c-text-1); text-align: start; }
+.st-preview-sub { font-weight: 400; color: var(--c-text-3); margin-inline-start: auto; font-size: 12px; }
+.st-preview-frame { display: block; width: 100%; height: 440px; border: 0; border-top: 1px solid var(--c-border); background: #fff; }
+@media (max-width: 640px) { .st-preview-frame { height: 320px; } .st-preview-sub { display: none; } }

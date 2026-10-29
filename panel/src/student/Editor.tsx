@@ -543,6 +543,7 @@ export function UploadWindow({ onClose, existing }: { onClose: () => void; exist
           </div>
         )}
         {fileNote && <div class="cp-hint st-filenote">{fileNote}</div>}
+        {file && !existing && <LocalFilePreview file={file} />}
         {extracting && (
           <div class="cp-progress">
             <div class="cp-progress-bar" style={{ width: `${pct}%` }} />
@@ -644,4 +645,51 @@ function lineTop(el: HTMLTextAreaElement, offset: number): number {
   const y = mark.offsetTop;
   m.remove();
   return y;
+}
+
+
+/** the attached file as it is — a PDF in a frame, a Word file rendered with its images — shown above the editable text,
+ *  so the student sees the presentation and not only the extracted words */
+function LocalFilePreview({ file }: { file: File }) {
+  const [open, setOpen] = useState(true);
+  const [url, setUrl] = useState<string | null>(null);
+  const [html, setHtml] = useState<string | null>(null);
+  const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name);
+  useEffect(() => {
+    let alive = true;
+    setHtml(null);
+    if (isPdf) {
+      const u = URL.createObjectURL(file);
+      setUrl(u);
+      return () => URL.revokeObjectURL(u);
+    }
+    (async () => {
+      try {
+        const mammoth = await import("mammoth/mammoth.browser.js");
+        const out = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+        if (alive) setHtml(out.value);
+      } catch {
+        if (alive) setHtml("");
+      }
+    })();
+    return () => void (alive = false);
+  }, [file]);
+  return (
+    <div class="st-preview">
+      <button class="st-preview-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <FileI size={14} /> תצוגת הקובץ כפי שהוא {open ? "▾" : "▸"}
+        <span class="st-preview-sub">הקובץ מתפרסם כמו שהוא; הטקסט למטה הוא לחיפוש ולעריכה</span>
+      </button>
+      {open &&
+        (isPdf ? (
+          url && <iframe class="st-preview-frame" src={url + "#view=FitH"} title={file.name} />
+        ) : html === null ? (
+          <div class="cp-hint">טוען תצוגה…</div>
+        ) : html === "" ? (
+          <div class="cp-hint">לא ניתן להציג את הקובץ כאן; הוא יפורסם כמו שהוא.</div>
+        ) : (
+          <iframe class="st-preview-frame" sandbox="" title={file.name} srcdoc={`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:16px;line-height:1.6;padding:8px;margin:0;color:#1c1a22}img{max-width:100%;height:auto}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body>${html}</body></html>`} />
+        ))}
+    </div>
+  );
 }
