@@ -169,6 +169,8 @@ export interface CampusDoc {
   lessonNo?: number | null;
   /** `hold` after a takedown request: only the author sees it, with a label */
   status?: string;
+  /** where it comes from: the student's own words, or a lesson presentation the students received */
+  source?: "own" | "received";
   /** AddStudent: the summary's topic and its publication date */
   topic?: string | null;
   published?: string | null;
@@ -180,7 +182,7 @@ export interface CampusDoc {
 export interface ShownTo { name: string; email: string }
 export interface Device { id: string; name: string; lastSeen: number | string | null; current: boolean }
 export interface SearchFilters { q?: string; year?: number; course?: string; lecturer?: string; from?: string; to?: string }
-export interface DocMeta { course?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string }
+export interface DocMeta { course?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; source?: "own" | "received" }
 export interface DirectoryTree { courses?: { course: string | null; n?: number; lecturers: { lecturer: string | null; name?: string | null; n: number; lessons: { date: string | null; n: number; topics?: string[] }[] }[] }[] }
 export interface TakedownItem { type: "doc" | "post" | "chat"; id: string; sections?: number[] }
 export interface Material { type: "doc" | "media"; id: string; title: string; kind?: string; ts: number; link?: string; media?: string }
@@ -216,11 +218,11 @@ export const api = {
   lecturerDocs: (inst: string, faculty: string, lecturer: string) => call<{ docs: CampusDoc[] }>(`/v1/campus/lecturer?${new URLSearchParams({ inst, faculty, lecturer })}`),
   campusDocs: (pl: CampusPlace, kind?: DocKind) => call<{ docs: CampusDoc[]; title: string; url: string; coverage?: Coverage }>(`/v1/campus/docs?${placeQ(pl, kind ? { kind } : {})}`),
   /** a text document: the student's own words (`author: true` is the declaration); an article carries a link too */
-  createDoc: (pl: CampusPlace, b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; author: true }) => call<{ doc: CampusDoc }>(`/v1/campus/docs?${placeQ(pl)}`, { method: "POST", body: b }),
+  createDoc: (pl: CampusPlace, b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; author: true; source?: "own" | "received" }) => call<{ doc: CampusDoc }>(`/v1/campus/docs?${placeQ(pl)}`, { method: "POST", body: b }),
   updateDoc: (id: string, b: { title?: string; body?: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number | null; topic?: string; published?: string }) => call<{ doc: CampusDoc }>(`/v1/campus/docs/${id}`, { method: "PUT", body: b }),
   /** AddStudent: a Word / PDF summary — the raw file, then the text extracted on the device */
   createDocFile: (pl: CampusPlace, m: DocMeta & { title: string }, file: Blob, type: "pdf" | "docx") =>
-    call<{ doc: CampusDoc }>(`/v1/campus/docs/file?${placeQ({ ...pl, course: m.course || pl.course }, { title: m.title, author: "1", ...(m.lecturer ? { lecturer: m.lecturer } : {}), ...(m.lessonDate ? { lessonDate: m.lessonDate } : {}), ...(m.lessonNo ? { lessonNo: String(m.lessonNo) } : {}), ...(m.topic ? { topic: m.topic } : {}), ...(m.published ? { published: m.published } : {}) })}`, { method: "POST", raw: file, type: type === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+    call<{ doc: CampusDoc }>(`/v1/campus/docs/file?${placeQ({ ...pl, course: m.course || pl.course }, { title: m.title, author: "1", ...(m.lecturer ? { lecturer: m.lecturer } : {}), ...(m.lessonDate ? { lessonDate: m.lessonDate } : {}), ...(m.lessonNo ? { lessonNo: String(m.lessonNo) } : {}), ...(m.topic ? { topic: m.topic } : {}), ...(m.published ? { published: m.published } : {}), ...(m.source ? { source: m.source } : {}) })}`, { method: "POST", raw: file, type: type === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
   putDocText: (id: string, text: string) => call<{ ok: boolean; sections?: DocSection[] }>(`/v1/campus/docs/${id}/text`, { method: "POST", raw: new Blob([text], { type: "text/plain" }), type: "text/plain; charset=utf-8" }),
   docFileUrl: (id: string) => `${API_BASE}/v1/campus/docs/${id}/file`,
   getDoc: (id: string) => call<{ doc: CampusDoc; body: string; shownTo?: ShownTo }>(`/v1/campus/docs/${id}`),

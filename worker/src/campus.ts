@@ -108,7 +108,7 @@ export function sectionsOf(body: string): { i: number; heading: string }[] {
 const cleanBody = (v: unknown) => String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
 
 // the columns docOut needs (never the body)
-const DOC_COLS = "d.id, d.user_id, d.user_name, d.inst, d.faculty, d.year, d.course, d.kind, d.title, d.sections, d.chars, d.created_at, d.updated_at, d.status, d.link_url, d.lecturer, d.lecturer_name, d.lesson_date, d.lesson_no, d.topic, d.published, d.file_type, d.size, d.track";
+const DOC_COLS = "d.id, d.user_id, d.user_name, d.inst, d.faculty, d.year, d.course, d.kind, d.title, d.sections, d.chars, d.created_at, d.updated_at, d.status, d.link_url, d.lecturer, d.lecturer_name, d.lesson_date, d.lesson_no, d.topic, d.published, d.file_type, d.size, d.track, d.source";
 
 export async function getDoc(env: Env, id: string) {
   return await env.DB.prepare(`SELECT ${DOC_COLS}, d.body FROM campus_docs d WHERE d.id=?`).bind(clampStr(id, 40)).first<any>();
@@ -153,6 +153,7 @@ export const docOut = (d: any) => {
     lecturerName: d.lecturer_name || undefined,
     lessonDate: d.lesson_date || undefined,
     lessonNo: d.lesson_no ?? undefined,
+    source: d.source === "received" ? "received" : "own",
     topic: d.topic || undefined,
     published: d.published || undefined,
     track: d.track || undefined,
@@ -229,6 +230,8 @@ async function docHead(env: Env, url: URL, u: User, b: any) {
   if (title.length < 3) return fail(400, "bad_title", "כתבו כותרת (או נושא) למסמך.");
   const author = qp("author");
   if (author !== true && author !== 1 && author !== "1") return fail(400, "author", AUTHOR_MSG);
+  // the declaration's kind: own words (default), or a lesson presentation the students received from the lecturer
+  const source = qp("source") === "received" ? "received" : "own";
   for (const t of [title, topic]) {
     if (!t) continue;
     const tv = await checkText(env, t, { isNew: isNew(u) });
@@ -244,14 +247,14 @@ async function docHead(env: Env, url: URL, u: User, b: any) {
   if ((today?.n ?? 0) >= DOCS_PER_DAY) return fail(429, "rate", "אפשר לפרסם עד 50 מסמכים ביום.");
   const qu = await quotaOf(env, u.id);
   if (qu.docsThisMonth >= qu.docsPerMonth) return fail(403, "quota", `הגעתם למכסה החודשית (${qu.docsPerMonth} מסמכים בחודש).`);
-  return { p, kind, title, topic: topic || null, lf, published, qu, track: prof.track as string };
+  return { p, kind, title, topic: topic || null, lf, published, qu, track: prof.track as string, source };
 }
 
 export async function createDoc(req: Request, env: Env, url: URL, u: User): Promise<Response> {
   const b = await readJson(req);
   const h = await docHead(env, url, u, b);
   if (h instanceof Response) return h;
-  const { p, kind, title, topic, lf, published, qu, track } = h;
+  const { p, kind, title, topic, lf, published, qu, track, source } = h;
   let link: string | null = null;
   if (kind === "article") {
     const l = checkLink(b.link ?? b.url);
@@ -264,9 +267,9 @@ export async function createDoc(req: Request, env: Env, url: URL, u: User): Prom
   const id = "d_" + randomId(10);
   const t = now();
   await env.DB.prepare(
-    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, link_url, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no, topic, published, track) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, link_url, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no, topic, published, track, source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, "", bd.body.length, t, bd.body, link, JSON.stringify(bd.sections), bd.body.length, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo, topic, published, track)
+    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, "", bd.body.length, t, bd.body, link, JSON.stringify(bd.sections), bd.body.length, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo, topic, published, track, source)
     .run();
   await modLog(env, { actor: u.id, action: "create_doc", target_type: "doc", target_id: id, reason: kind });
   return json({ doc: docOut(await getDoc(env, id)) });
@@ -287,7 +290,7 @@ async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 export async function createDocFile(req: Request, env: Env, url: URL, u: User): Promise<Response> {
   const h = await docHead(env, url, u, {});
   if (h instanceof Response) return h;
-  const { p, kind, title, topic, lf, published, track } = h;
+  const { p, kind, title, topic, lf, published, track, source } = h;
   if (kind === "article") return fail(400, "bad_kind", "מאמר הוא קישור, לא קובץ.");
   const len = Number(req.headers.get("Content-Length") || 0);
   if (len > MAX_FILE) return fail(413, "too_big", "הקובץ גדול מדי (עד 15MB).");
@@ -304,9 +307,9 @@ export async function createDocFile(req: Request, env: Env, url: URL, u: User): 
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: FILE_TYPES[type].mime, cacheControl: "private, max-age=3600" }, customMetadata: { uid: u.id } });
   const t = now();
   await env.DB.prepare(
-    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no, topic, published, track, file_type, sha256) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no, topic, published, track, file_type, sha256, source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, key, bytes.byteLength, t, "", "[]", 0, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo, topic, published, track, type, hash)
+    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, key, bytes.byteLength, t, "", "[]", 0, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo, topic, published, track, type, hash, source)
     .run();
   await modLog(env, { actor: u.id, action: "create_doc", target_type: "doc", target_id: id, reason: `${kind}:${type}` });
   return json({ doc: docOut(await getDoc(env, id)) });

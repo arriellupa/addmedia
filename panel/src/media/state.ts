@@ -489,7 +489,7 @@ export function docError(e: any): string {
   return e?.message || "השמירה נכשלה. נסו שוב.";
 }
 
-export async function saveDoc(b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; course?: string }, existing?: CampusDoc, retry?: () => void): Promise<CampusDoc | null> {
+export async function saveDoc(b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; course?: string; source?: "own" | "received" }, existing?: CampusDoc, retry?: () => void): Promise<CampusDoc | null> {
   const base = place.value;
   if (!base) return null;
   const pl: CampusPlace = b.course ? { ...base, course: b.course } : base;
@@ -519,7 +519,7 @@ export async function saveDoc(b: { kind: DocKind; title: string; body: string; l
 
 /** AddStudent: a Word / PDF summary. The file goes up as it is; the text is extracted on the device and posted after,
  *  so the search and the reader work; when the extraction fails the file is still published. */
-export async function saveDocFile(m: { title: string; course: string; topic?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; published?: string }, file: File, onProgress?: (stage: "upload" | "extract" | "text", done?: number, total?: number) => void, text?: string, retry?: () => void): Promise<{ doc: CampusDoc; textOk: boolean } | null> {
+export async function saveDocFile(m: { title: string; course: string; topic?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; published?: string; source?: "own" | "received" }, file: File, onProgress?: (stage: "upload" | "extract" | "text", done?: number, total?: number) => void, text?: string, retry?: () => void): Promise<{ doc: CampusDoc; textOk: boolean } | null> {
   const base = place.value;
   if (!base) return null;
   const type: "pdf" | "docx" = /\.pdf$/i.test(file.name) || file.type === "application/pdf" ? "pdf" : "docx";

@@ -180,6 +180,7 @@ export function Reader() {
               <span class="cp-rd-metatext">
                 <bdi class="cp-rd-by">{d.name}</bdi>
                 <span class="cp-rd-sub">
+                  {d.source === "received" && <b>מצגת שיעור שקיבלנו · </b>}
                   {d.lecturer && <>{d.lecturerName || unslug(d.lecturer)} · </>}
                   {d.lessonDate && <>שיעור {d.lessonNo ? `${d.lessonNo} · ` : ""}<span class="num">{d.lessonDate.split("-").reverse().join(".")}</span> · </>}
                   <span class="num">{date(d.updatedAt || d.ts)}</span>

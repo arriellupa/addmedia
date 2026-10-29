@@ -137,6 +137,8 @@ export function UploadWindow({ onClose, existing }: { onClose: () => void; exist
   const [extracting, setExtracting] = useState<{ done: number; total: number } | null>(null);
   const [numbering, setNumbering] = useState(false);
   const [author, setAuthor] = useState(!!existing);
+  // the second declaration: the attached file is a lesson presentation the students received
+  const [received, setReceived] = useState(existing?.source === "received");
   const [pasteBox, setPasteBox] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [busy, setBusy] = useState<null | string>(null);
@@ -382,7 +384,7 @@ export function UploadWindow({ onClose, existing }: { onClose: () => void; exist
   const submit = async () => {
     if (!ok || busy) return;
     const text = body.replace(/\r\n/g, "\n").trim();
-    const meta = { topic: topic.trim(), lecturer: lecturer.trim() || undefined, lessonDate: lessonDate || undefined, published };
+    const meta = { topic: topic.trim(), lecturer: lecturer.trim() || undefined, lessonDate: lessonDate || undefined, published, source: (received ? "received" : "own") as "own" | "received" };
     if (existing) {
       setBusy("שומר…");
       const d = await saveDoc({ kind: existing.kind, title: topic.trim(), body: text, ...meta }, existing, submit);
@@ -512,7 +514,14 @@ export function UploadWindow({ onClose, existing }: { onClose: () => void; exist
           <input type="checkbox" checked={author} onChange={(e) => setAuthor(e.currentTarget.checked)} />
           <span>
             <b>כתבתי או ערכתי את הסיכום במילותיי</b>
-            <small>לא העתקתי מצגת, הקלטה או מבחן של מרצה. חומר של מרצים ומוסדות מוסר לבקשתם, והחשבון מקבל ציון.</small>
+            <small>{received ? "הסיכום שלי; המצגת צורפה כפי שקיבלנו אותה, בלי שינוי." : "לא העתקתי מצגת, הקלטה או מבחן של מרצה."} חומר של מרצים ומוסדות מוסר לבקשתם, והחשבון מקבל ציון.</small>
+          </span>
+        </label>
+        <label class={`cp-declare st-declare ${received ? "on" : ""}`}>
+          <input type="checkbox" checked={received} disabled={!!existing} onChange={(e) => setReceived(e.currentTarget.checked)} />
+          <span>
+            <b>מצגת שיעור שקיבלנו</b>
+            <small>הקובץ המצורף הוא מצגת שהמרצה העביר לסטודנטים בשיעור או במערכת הקורס. הוא יסומן כך לקוראים.</small>
           </span>
         </label>
         {!ok && !busy && missing.length > 0 && (author || topic || course || body) && (
