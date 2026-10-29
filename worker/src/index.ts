@@ -16,7 +16,7 @@ export { Directory } from "./directory";
 const VERSION = "2026-10-29.3";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
-const STUDENT_HOST = "addstudent.noaplate.com";
+const STUDENT_HOSTS = new Set(["addstudent.com", "www.addstudent.com", "addstudent.noaplate.com"]);
 
 const PRODUCTS = [
   { id: "media5", kind: "media", qty: 5, price: 990, title: "5 העלאות תמונה", note: "כל תמונה מוצגת 7 ימים" },
@@ -694,7 +694,10 @@ export default {
       // AddStudent: the students' own site (addstudent.noaplate.com, or /student/ on any host) is one app at /panel/student.html;
       // until the UI ships it, the media page serves in its place
       // on the students' host the root is the app; the legal pages, the admin and the files stay what they are everywhere
-      const student = p === "/student" || p.startsWith("/student/") || (url.hostname === STUDENT_HOST && p === "/");
+      const student = p === "/student" || p.startsWith("/student/") || (STUDENT_HOSTS.has(url.hostname) && p === "/");
+      if (req.method === "GET" && (url.hostname === "www.addstudent.com" || url.hostname === "addstudent.noaplate.com")) {
+        return Response.redirect("https://addstudent.com" + (p === "/" ? "/student/" : p) + url.search, 301);
+      }
       if (req.method === "GET" && student) {
         if (p === "/student") return Response.redirect(url.origin + "/student/" + url.search, 302);
         if (p === "/") return Response.redirect(url.origin + "/student/" + url.search, 302);
