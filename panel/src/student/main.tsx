@@ -15,6 +15,7 @@ import { appBase, clearPlace, loadFollows, loadStudent, loadTree, mode, openPlac
 import { StudentApp } from "./StudentApp";
 
 document.documentElement.dataset.theme = "light";
+document.documentElement.dataset.app = "student";
 appBase.value = "/student";
 mode.value = "campus";
 

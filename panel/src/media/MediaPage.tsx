@@ -2,12 +2,12 @@
 // (the operator's ad, or the room's card), the live chat (left), the talkbacks (center), the readers' media strip
 // (bottom). A tap on the cap turns it into the campus: institution › faculty › year › course, with articles and summaries.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { API_BASE, CenterAd as CenterAdT, Post } from "../api";
+import { API_BASE, Post } from "../api";
 import { count } from "../fmt";
 import { Book, Cap, Chevron, External, FileI, Globe, Grid, ImageI, LinkI, Plus, Radar, Refresh, Star, X } from "../icons";
 import { bundle, canPost, load, loadError, loading, me, needAuth, page, presence, scope, setScope, sheet, status, uploadImage, visibleMedia } from "../state";
 import { AttachButton, RefCard } from "../ui/Attach";
-import { Avatar, LiveDot, Sponsored, Toast } from "../ui/Bits";
+import { Avatar, CenterAd, LiveDot, Sponsored, Toast } from "../ui/Bits";
 import { ChatView } from "../ui/Chat";
 import { CommentsView } from "../ui/Comments";
 import { GoBar } from "../ui/GoBar";
@@ -283,31 +283,6 @@ function RoomCard() {
   );
 }
 
-function CenterAd({ ad }: { ad: CenterAdT }) {
-  const inner = (
-    <>
-      {ad.image && <img class="cad-img" src={ad.image} alt="" loading="lazy" />}
-      <div class="cad-text">
-        <span class="cad-label">{ad.label}</span>
-        <div class="cad-title" dir="auto">
-          {ad.title}
-        </div>
-        {ad.body && (
-          <div class="cad-body" dir="auto">
-            {ad.body}
-          </div>
-        )}
-      </div>
-    </>
-  );
-  return ad.url ? (
-    <a class="cad" href={ad.url} target="_blank" rel="noopener sponsored">
-      {inner}
-    </a>
-  ) : (
-    <div class="cad">{inner}</div>
-  );
-}
 
 // ---------- the media strip ----------
 function MediaStrip({ onAdd }: { onAdd: () => void }) {

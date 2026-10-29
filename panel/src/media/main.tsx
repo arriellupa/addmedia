@@ -12,7 +12,7 @@ import { api } from "../api";
 import { MediaPage } from "./MediaPage";
 import { goHome, loadFollows, loadStudent, loadTree, mode, openPlace, parseLocation, place, remember, student, pendingDoc } from "./state";
 
-document.documentElement.dataset.theme = "dark";
+document.documentElement.dataset.theme = "light";
 
 async function start() {
   await initAuth();

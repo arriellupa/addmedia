@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { API_BASE, type Ad } from "../api";
+import { API_BASE, type Ad, type CenterAd as CenterAdT } from "../api";
 import { count, hue, initials } from "../fmt";
 import { host } from "../host";
 import { Info, X } from "../icons";
@@ -150,5 +150,43 @@ export function SheetFrame({ title, children, onBack, wide }: { title: string; c
         <div class="sheet-body">{children}</div>
       </div>
     </div>
+  );
+}
+
+/** the operator's window in the middle (admin: «פרסום מרכזי»): a mint card with a fixed «ממומן» label, never mixed into the chat */
+export function CenterAd({ ad }: { ad: CenterAdT }) {
+  const inner = (
+    <>
+      {ad.image && <img class="cad-img" src={ad.image} alt="" loading="lazy" decoding="async" />}
+      <div class="cad-text">
+        <span class="cad-label">{ad.label}</span>
+        <div class="cad-title" dir="auto">
+          {ad.title}
+        </div>
+        {ad.body && (
+          <div class="cad-body" dir="auto">
+            {ad.body}
+          </div>
+        )}
+      </div>
+    </>
+  );
+  return ad.url ? (
+    <a
+      class="cad"
+      href={ad.url}
+      target="_blank"
+      rel="noopener sponsored"
+      onClick={(e) => {
+        if (host.kind !== "web") {
+          e.preventDefault();
+          host.open(ad.url!);
+        }
+      }}
+    >
+      {inner}
+    </a>
+  ) : (
+    <div class="cad">{inner}</div>
   );
 }

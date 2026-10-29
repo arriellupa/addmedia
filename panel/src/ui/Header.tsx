@@ -172,7 +172,7 @@ export function Tabs() {
   const idx = items.findIndex((i) => i.id === tab.value);
   return (
     <div class="tabs-wrap">
-      <nav class="tabs" role="tablist" aria-label="תצוגה" style={{ "--i": String(idx) }}>
+      <nav class="tabs" role="tablist" aria-label="תצוגה" data-i={String(idx)} style={{ "--i": String(idx) }}>
         <span class="tab-ink" aria-hidden="true" />
         {items.map((i) => (
           <button

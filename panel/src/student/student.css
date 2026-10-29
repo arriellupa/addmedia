@@ -1,13 +1,14 @@
 /* AddStudent — light, airy, one warm accent. The campus components (cp-*) keep their structure; their dark-only
    tokens (--pane, --cp-*) get light values here. Secular One for headings, Plex for UI. */
 @layer media {
-  :root[data-theme="light"] {
+  :root[data-app="student"] {
     color-scheme: light;
     --c-panel: #fbf8f3; --c-surface: #ffffff; --c-raised: #ffffff; --c-sunken: #f1ede6;
     --c-text-1: #1c1a22; --c-text-2: #524e5a; --c-text-3: #7a7583;
     --c-border: #e6e1d8; --c-border-strong: #9a948f;
     --c-accent: #2f63e6; --c-accent-hover: #2554cc; --c-accent-pressed: #1d47b3;
     --c-on-accent: #ffffff; --c-accent-text: #2554cc; --c-accent-tint: #e8eefc;
+    --c-cta: #2f63e6; --c-cta-hover: #2554cc; --c-cta-pressed: #1d47b3; --c-on-cta: #ffffff;
     --c-live: #0e9155; --c-live-text: #0f7a47;
     --c-sponsor: #8a6a1a; --c-sponsor-tint: #f8efd8;
     --c-focus: #2f63e6;
