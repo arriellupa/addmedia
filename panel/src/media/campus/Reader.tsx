@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { API_BASE, CampusDoc, Post, api, getToken } from "../../api";
 import { ago, date } from "../../fmt";
 import { ArrowNext, ArrowPrev, Chevron, Copy, Edit, External, FileI, MessageI, Quote, Shield, X } from "../../icons";
+import { ShareButton } from "../../ui/Share";
 import { composerInsert, me, needAuth, say, sheet } from "../../state";
 import { Avatar } from "../../ui/Bits";
 import { KIND_HE, appBase, closeReader, ctab, docLink, editor, fetchBody, reader, readerSection, shownToOf, splitSections, takedownOpen, unslug } from "../state";
@@ -141,6 +142,7 @@ export function Reader() {
             <Edit size={18} />
           </button>
         )}
+        <ShareButton title={d.title} url={docLink(d, 1)} text={`${d.title} · ${d.name}`} />
         <button class="btn btn-secondary btn-sm cp-rd-cite" onClick={() => cite(false)} title="העתקת קישור לסעיף הנוכחי">
           <Quote size={14} /> ציטוט
         </button>

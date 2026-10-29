@@ -8,6 +8,7 @@ import { Book, Calendar, Cap, Chevron, Search as SearchI, Shield, Star, Upload, 
 import { me, needAuth, presence, say, sheet } from "../state";
 import { Avatar, LiveDot, Toast } from "../ui/Bits";
 import { Sheets } from "../ui/Sheets";
+import { ShareButton } from "../ui/Share";
 import { Course } from "../media/campus/CampusPage";
 import { DirectorySheet } from "../media/campus/Directory";
 import { DocCard } from "../media/campus/Docs";
@@ -88,6 +89,7 @@ export function StudentApp() {
             <Star size={16} /> הדפים שלי
           </button>
         </nav>
+        <ShareButton title="AddStudent — הסיכומים של השנה שלך" url={location.pathname + location.search} text="סיכומים לפי שיעור, מרצה ותאריך — כאן הסטודנטים מעלים ומוצאים" />
         <button class={`me-btn ${u ? "" : "out"}`} onClick={() => (sheet.value = u ? { type: "account" } : { type: "signin" })}>
           {u && <Avatar id={u.id} name={u.name} size={24} />}
           {u ? u.name : "כניסה"}
