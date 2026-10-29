@@ -2,7 +2,7 @@
 import { handleAdmin, modLog } from "./admin";
 import { User, getUser, logout, publicUser, startAuth, tokenFrom, verifyAuth } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
-import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, createEvent, deleteDoc, deleteEvent, directory, existingRef, follow, myMaterials, recordRef, refOfMaterial, refRoomsMax, roomsOfMaterial, setRefsStatus, getCourseMeta, getStudent, grantPlan, hasStudent, holdsOf, lecturerArchive, listDocs, listEvents, listFollows, placeOf, placeTitle, placeUrl, putCourseMeta, putStudent, planOf, quotaOf, readDoc, searchDocs, slug, takedownNotice, takedownStart, updateDoc } from "./campus";
+import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, createDocFile, createEvent, deleteDoc, deleteEvent, directory, docFile, putDocText, existingRef, follow, myMaterials, recordRef, refOfMaterial, refRoomsMax, roomsOfMaterial, setRefsStatus, getCourseMeta, getStudent, grantPlan, hasStudent, holdsOf, lecturerArchive, listDocs, listEvents, listFollows, placeOf, placeTitle, placeUrl, putCourseMeta, putStudent, planOf, quotaOf, readDoc, searchDocs, slug, takedownNotice, takedownStart, updateDoc } from "./campus";
 import { debugPage, debugVia } from "./debug";
 import { getSettings, publicSettings } from "./settings";
 import { checkImage, checkPost, checkText } from "./moderation";
@@ -13,9 +13,10 @@ export { PageRoom } from "./room";
 export { Directory } from "./directory";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-29.1";
+const VERSION = "2026-10-29.3";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
+const STUDENT_HOST = "addstudent.noaplate.com";
 
 const PRODUCTS = [
   { id: "media5", kind: "media", qty: 5, price: 990, title: "5 העלאות תמונה", note: "כל תמונה מוצגת 7 ימים" },
@@ -527,11 +528,14 @@ export default {
       }
       if (p === "/v1/campus/tree") {
         // the plain tree (picker) is free; with a place it carries the directory counts, which are part of the paid campus
-        const place = url.searchParams.get("inst") ? campusPlace(url) : null;
-        if (!place) return json(campusTree(), 200, { "Cache-Control": "public, max-age=3600" });
+        const inst = slug(url.searchParams.get("inst") || "");
+        const faculty = slug(url.searchParams.get("faculty") || "");
+        if (!inst || !faculty) return json(campusTree(), 200, { "Cache-Control": "public, max-age=3600" });
+        const year = url.searchParams.get("year") ? Number(url.searchParams.get("year")) : null;
+        if (year !== null && !(year >= 1 && year <= 6)) return fail(400, "bad_place", "שנה לא תקינה.");
         const v = await requirePlan(env, req, url);
         if (v instanceof Response) return v;
-        return json({ ...campusTree(), place, courses: await directory(env, place.inst, place.faculty, place.year) });
+        return json({ ...campusTree(), place: { inst, faculty, year: year ?? undefined }, courses: await directory(env, inst, faculty, year) });
       }
       if (p === "/v1/campus/lecturer" && req.method === "GET") {
         const inst = slug(url.searchParams.get("inst") || "");
@@ -555,6 +559,22 @@ export default {
         if (u instanceof Response) return u;
         return await createDoc(req, env, url, u);
       }
+      if (p === "/v1/campus/docs/file" && req.method === "POST") {
+        const u = await requireStudent(env, req, url);
+        if (u instanceof Response) return u;
+        return await createDocFile(req, env, url, u);
+      }
+      const dfm = p.match(/^\/v1\/campus\/docs\/([A-Za-z0-9_-]{4,40})\/(file|text)$/);
+      if (dfm && dfm[2] === "file" && req.method === "GET") {
+        const viewer = await requirePlan(env, req, url);
+        if (viewer instanceof Response) return viewer;
+        return await docFile(env, dfm[1], viewer?.id);
+      }
+      if (dfm && dfm[2] === "text" && req.method === "POST") {
+        const u = await requireStudent(env, req, url);
+        if (u instanceof Response) return u;
+        return await putDocText(req, env, dfm[1], u);
+      }
       const dm = p.match(/^\/v1\/campus\/docs\/([A-Za-z0-9_-]{4,40})$/);
       if (dm && req.method === "GET") {
         const viewer = await requirePlan(env, req, url);
@@ -568,11 +588,22 @@ export default {
       }
       if (dm && req.method === "DELETE") return await deleteDoc(env, dm[1], await getUser(env, tokenFrom(req, url)));
       if (p === "/v1/campus/search" && req.method === "GET") {
-        const place = campusPlace(url);
-        if (!place) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
+        const g = (k: string) => url.searchParams.get(k);
+        const inst = slug(g("inst") || "");
+        const faculty = slug(g("faculty") || "");
+        if (!inst || !faculty) return fail(400, "bad_place", "יש לבחור מוסד ופקולטה.");
+        const year = g("year") ? Number(g("year")) : null;
+        if (year !== null && !(year >= 1 && year <= 6)) return fail(400, "bad_place", "שנה לא תקינה.");
+        const date = (k: string) => {
+          const v = clampStr(g(k), 10);
+          return v ? (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "bad") : null;
+        };
+        const from = date("from");
+        const to = date("to");
+        if (from === "bad" || to === "bad") return fail(400, "bad_date", "תאריך בפורמט YYYY-MM-DD.");
         const v = await requirePlan(env, req, url);
         if (v instanceof Response) return v;
-        return json(await searchDocs(env, place, url.searchParams.get("q") || ""));
+        return json(await searchDocs(env, { inst, faculty, year, course: slug(g("course") || "") || null, lecturer: slug(g("lecturer") || "") || null, from, to, q: g("q") }));
       }
       if (p === "/v1/campus/course") {
         const place = campusPlace(url);
@@ -660,6 +691,17 @@ export default {
       if (rm) return await roomAction(req, env, url, rm[1], rm[2].split("/"));
       if (p.startsWith("/m/")) return await serveMedia(env, decodeURIComponent(p.slice(3)));
       if (p.startsWith("/v1/")) return fail(404, "not_found", "נתיב לא קיים.");
+      // AddStudent: the students' own site (addstudent.noaplate.com, or /student/ on any host) is one app at /panel/student.html;
+      // until the UI ships it, the media page serves in its place
+      // on the students' host the root is the app; the legal pages, the admin and the files stay what they are everywhere
+      const student = p === "/student" || p.startsWith("/student/") || (url.hostname === STUDENT_HOST && p === "/");
+      if (req.method === "GET" && student) {
+        if (p === "/student") return Response.redirect(url.origin + "/student/" + url.search, 302);
+        if (p === "/") return Response.redirect(url.origin + "/student/" + url.search, 302);
+        let r = await env.ASSETS.fetch(new Request(url.origin + "/panel/student.html", { headers: req.headers }));
+        if (r.status === 404) r = await env.ASSETS.fetch(new Request(url.origin + "/panel/media.html", { headers: req.headers }));
+        return new Response(r.body, { status: r.status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
+      }
       // the media page: one app at /media/, with stable addresses for campus pages and sites (/media/campus/…, /media/site/…)
       if (req.method === "GET" && (p === "/media" || p.startsWith("/media/"))) {
         if (p === "/media") return Response.redirect(url.origin + "/media/" + url.search, 302);

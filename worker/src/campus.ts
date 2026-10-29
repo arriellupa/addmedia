@@ -108,7 +108,7 @@ export function sectionsOf(body: string): { i: number; heading: string }[] {
 const cleanBody = (v: unknown) => String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
 
 // the columns docOut needs (never the body)
-const DOC_COLS = "d.id, d.user_id, d.user_name, d.inst, d.faculty, d.year, d.course, d.kind, d.title, d.sections, d.chars, d.created_at, d.updated_at, d.status, d.link_url, d.lecturer, d.lecturer_name, d.lesson_date, d.lesson_no";
+const DOC_COLS = "d.id, d.user_id, d.user_name, d.inst, d.faculty, d.year, d.course, d.kind, d.title, d.sections, d.chars, d.created_at, d.updated_at, d.status, d.link_url, d.lecturer, d.lecturer_name, d.lesson_date, d.lesson_no, d.topic, d.published, d.file_type, d.size, d.track";
 
 export async function getDoc(env: Env, id: string) {
   return await env.DB.prepare(`SELECT ${DOC_COLS}, d.body FROM campus_docs d WHERE d.id=?`).bind(clampStr(id, 40)).first<any>();
@@ -153,6 +153,10 @@ export const docOut = (d: any) => {
     lecturerName: d.lecturer_name || undefined,
     lessonDate: d.lesson_date || undefined,
     lessonNo: d.lesson_no ?? undefined,
+    topic: d.topic || undefined,
+    published: d.published || undefined,
+    track: d.track || undefined,
+    file: d.file_type ? { url: `/v1/campus/docs/${d.id}/file`, type: d.file_type, size: d.size ?? 0 } : null,
     sections,
     chars: d.chars ?? 0,
     ts: d.created_at,
@@ -206,25 +210,48 @@ async function checkBody(env: Env, raw: unknown): Promise<{ body: string; sectio
   return { body, sections: sectionsOf(body) };
 }
 
-export async function createDoc(req: Request, env: Env, url: URL, u: User): Promise<Response> {
-  const p = placeOf({ inst: url.searchParams.get("inst"), faculty: url.searchParams.get("faculty"), year: url.searchParams.get("year"), course: url.searchParams.get("course") });
+/** what every new document shares: the place (faculty, year and track from the student's profile), kind, title/topic,
+ *  the author declaration, lesson fields, strikes and quotas. `b` is the JSON body or the query, merged. */
+async function docHead(env: Env, url: URL, u: User, b: any) {
+  const qp = (k: string) => b[k] ?? url.searchParams.get(k);
+  // faculty, year and track come from the profile; a second faculty (dual major) may be chosen by the query
+  const prof = await env.DB.prepare("SELECT inst, faculty, faculty2, year, track FROM student_profiles WHERE user_id=?").bind(u.id).first<any>();
+  if (!prof) return fail(403, "student", STUDENT_MSG);
+  const askedFaculty = slug(String(qp("faculty") || ""));
+  const faculty = askedFaculty && askedFaculty === prof.faculty2 ? prof.faculty2 : prof.faculty;
+  const p = placeOf({ inst: qp("inst") || prof.inst, faculty, year: prof.year, course: qp("course") });
   if (!p) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
-  const b = await readJson(req);
-  const kind = String(b.kind || url.searchParams.get("kind") || "");
+  const kind = String(qp("kind") || "summary");
   if (!DOC_KINDS.has(kind)) return fail(400, "bad_kind", "סוג המסמך לא מוכר.");
-  const title = clampStr(b.title ?? url.searchParams.get("title"), 160);
-  if (title.length < 3) return fail(400, "bad_title", "כתבו כותרת למסמך.");
-  if (b.author !== true && b.author !== 1 && b.author !== "1" && url.searchParams.get("author") !== "1") return fail(400, "author", AUTHOR_MSG);
-  const tv = await checkText(env, title, { isNew: isNew(u) });
-  if (!tv.ok) return fail(422, tv.code, tv.message);
+  const topic = clampStr(qp("topic"), 120).replace(/\s+/g, " ");
+  if (qp("topic") != null && String(qp("topic")).trim() && topic.length < 2) return fail(400, "bad_topic", "נושא הסיכום קצר מדי.");
+  const title = clampStr(qp("title"), 160) || topic;
+  if (title.length < 3) return fail(400, "bad_title", "כתבו כותרת (או נושא) למסמך.");
+  const author = qp("author");
+  if (author !== true && author !== 1 && author !== "1") return fail(400, "author", AUTHOR_MSG);
+  for (const t of [title, topic]) {
+    if (!t) continue;
+    const tv = await checkText(env, t, { isNew: isNew(u) });
+    if (!tv.ok) return fail(422, tv.code, tv.message);
+  }
   if ((u.strikes ?? 0) >= 3) return fail(403, "strikes", "אחרי שלוש הסרות לבקשת בעלי זכויות אי אפשר לפרסם עוד.");
   if (kind !== "article" && !p.course) return fail(400, "bad_course", "סיכום או תרגול שייכים לקורס: בחרו קורס.");
-  const lf = lessonFields(b);
+  const lf = lessonFields({ lecturer: qp("lecturer"), lessonDate: qp("lessonDate"), lessonNo: qp("lessonNo") });
   if (lf instanceof Response) return lf;
+  const published = clampStr(qp("published"), 10) || todayIL();
+  if (!DATE_RE.test(published)) return fail(400, "bad_date", "תאריך הפרסום בפורמט YYYY-MM-DD.");
   const today = await env.DB.prepare("SELECT COUNT(*) n FROM campus_docs WHERE user_id=? AND created_at>?").bind(u.id, now() - 86_400_000).first<{ n: number }>();
   if ((today?.n ?? 0) >= DOCS_PER_DAY) return fail(429, "rate", "אפשר לפרסם עד 50 מסמכים ביום.");
   const qu = await quotaOf(env, u.id);
   if (qu.docsThisMonth >= qu.docsPerMonth) return fail(403, "quota", `הגעתם למכסה החודשית (${qu.docsPerMonth} מסמכים בחודש).`);
+  return { p, kind, title, topic: topic || null, lf, published, qu, track: prof.track as string };
+}
+
+export async function createDoc(req: Request, env: Env, url: URL, u: User): Promise<Response> {
+  const b = await readJson(req);
+  const h = await docHead(env, url, u, b);
+  if (h instanceof Response) return h;
+  const { p, kind, title, topic, lf, published, qu, track } = h;
   let link: string | null = null;
   if (kind === "article") {
     const l = checkLink(b.link ?? b.url);
@@ -237,12 +264,91 @@ export async function createDoc(req: Request, env: Env, url: URL, u: User): Prom
   const id = "d_" + randomId(10);
   const t = now();
   await env.DB.prepare(
-    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, link_url, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, link_url, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no, topic, published, track) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, "", bd.body.length, t, bd.body, link, JSON.stringify(bd.sections), bd.body.length, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo)
+    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, "", bd.body.length, t, bd.body, link, JSON.stringify(bd.sections), bd.body.length, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo, topic, published, track)
     .run();
   await modLog(env, { actor: u.id, action: "create_doc", target_type: "doc", target_id: id, reason: kind });
   return json({ doc: docOut(await getDoc(env, id)) });
+}
+
+// ---------- a summary as a file: PDF or Word, the text extracted on the client and posted afterwards ----------
+const MAX_FILE = 15 * 1024 * 1024;
+const FILE_TYPES: Record<string, { mime: string; magic: number[] }> = {
+  pdf: { mime: "application/pdf", magic: [0x25, 0x50, 0x44, 0x46, 0x2d] }, // %PDF-
+  docx: { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", magic: [0x50, 0x4b, 0x03, 0x04] }, // PK\x03\x04
+};
+
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return [...d].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function createDocFile(req: Request, env: Env, url: URL, u: User): Promise<Response> {
+  const h = await docHead(env, url, u, {});
+  if (h instanceof Response) return h;
+  const { p, kind, title, topic, lf, published, track } = h;
+  if (kind === "article") return fail(400, "bad_kind", "מאמר הוא קישור, לא קובץ.");
+  const len = Number(req.headers.get("Content-Length") || 0);
+  if (len > MAX_FILE) return fail(413, "too_big", "הקובץ גדול מדי (עד 15MB).");
+  const bytes = await req.arrayBuffer();
+  if (bytes.byteLength > MAX_FILE) return fail(413, "too_big", "הקובץ גדול מדי (עד 15MB).");
+  if (bytes.byteLength < 20) return fail(415, "bad_type", "אפשר להעלות רק PDF או Word (.docx).");
+  const head = new Uint8Array(bytes.slice(0, 8));
+  const type = Object.keys(FILE_TYPES).find((k) => FILE_TYPES[k].magic.every((b, i) => head[i] === b));
+  if (!type) return fail(415, "bad_type", "אפשר להעלות רק PDF או Word (.docx).");
+  const hash = await sha256Hex(bytes);
+  if (await env.DB.prepare("SELECT 1 FROM blocked_hashes WHERE sha256=?").bind(hash).first()) return fail(403, "blocked", "הקובץ הוסר בעבר לבקשת בעל הזכויות");
+  const id = "d_" + randomId(10);
+  const key = `campus/${p.inst}/${p.faculty}/${p.year}/${id}.${type}`;
+  await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: FILE_TYPES[type].mime, cacheControl: "private, max-age=3600" }, customMetadata: { uid: u.id } });
+  const t = now();
+  await env.DB.prepare(
+    "INSERT INTO campus_docs (id, user_id, user_name, inst, faculty, year, course, kind, title, r2_key, size, created_at, body, sections, chars, updated_at, lecturer, lecturer_name, lesson_date, lesson_no, topic, published, track, file_type, sha256) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  )
+    .bind(id, u.id, u.display_name, p.inst, p.faculty, p.year, p.course ?? null, kind, title, key, bytes.byteLength, t, "", "[]", 0, t, lf.lecturer, lf.lecturerName, lf.lessonDate, lf.lessonNo, topic, published, track, type, hash)
+    .run();
+  await modLog(env, { actor: u.id, action: "create_doc", target_type: "doc", target_id: id, reason: `${kind}:${type}` });
+  return json({ doc: docOut(await getDoc(env, id)) });
+}
+
+/** the text the client extracted from the file (mammoth / pdf.js), as the document's body */
+export async function putDocText(req: Request, env: Env, id: string, u: User): Promise<Response> {
+  const d = await getDoc(env, id);
+  if (!d || d.status === "removed") return fail(404, "not_found", "המסמך לא נמצא.");
+  if (d.user_id !== u.id) return fail(403, "forbidden", "רק מי שהעלה את המסמך יכול לצרף את הטקסט שלו.");
+  const max = Math.min(MAX_BODY, (await getSettings(env)).campusCharsPerDoc);
+  if (Number(req.headers.get("Content-Length") || 0) > max * 4 + 1000) return fail(413, "long_body", `הטקסט ארוך מדי (עד ${max.toLocaleString("en-US")} תווים).`);
+  let body = cleanBody(await req.text());
+  if (!body) return fail(400, "empty", "אין טקסט.");
+  if (body.length > max) body = body.slice(0, max); // extracted text is cut at the quota rather than refused
+  const v = await checkTerms(env, body);
+  if (!v.ok) return fail(422, v.code, v.message);
+  const qu = await quotaOf(env, u.id);
+  if (qu.charsUsed - (d.chars || 0) + body.length > qu.charsTotal) return fail(403, "quota", `הגעתם למכסת התווים הכוללת (${qu.charsTotal.toLocaleString("en-US")} תווים).`);
+  const sections = sectionsOf(body);
+  await env.DB.prepare("UPDATE campus_docs SET body=?, sections=?, chars=?, updated_at=? WHERE id=?").bind(body, JSON.stringify(sections), body.length, now(), d.id).run();
+  return json({ ok: true, sections, chars: body.length });
+}
+
+export async function docFile(env: Env, id: string, viewer?: string | null): Promise<Response> {
+  const d = await env.DB.prepare("SELECT r2_key, title, status, file_type, user_id FROM campus_docs WHERE id=?").bind(clampStr(id, 40)).first<any>();
+  const mine = !!viewer && d?.user_id === viewer;
+  if (!d || !d.file_type || !d.r2_key || !(d.status === "visible" || (d.status === "hold" && mine))) return fail(404, "not_found", "הקובץ לא נמצא.");
+  const obj = await env.MEDIA.get(d.r2_key);
+  if (!obj) return fail(404, "not_found", "הקובץ לא נמצא.");
+  const name = encodeURIComponent((d.title || "document").replace(/[^\p{L}\p{N} .-]/gu, "").trim() || "document") + "." + d.file_type;
+  const ft = FILE_TYPES[d.file_type] || FILE_TYPES.pdf;
+  return new Response(obj.body, {
+    headers: {
+      "Content-Type": ft.mime,
+      "Content-Disposition": `${d.file_type === "pdf" ? "inline" : "attachment"}; filename*=UTF-8''${name}`,
+      "Cache-Control": "private, max-age=3600",
+      "Content-Security-Policy": "default-src 'none'",
+      "X-Content-Type-Options": "nosniff",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 }
 
 export async function updateDoc(req: Request, env: Env, id: string, u: User): Promise<Response> {
@@ -275,6 +381,20 @@ export async function updateDoc(req: Request, env: Env, id: string, u: User): Pr
     sets.push("body=?", "sections=?", "chars=?", "size=?");
     args.push(bd.body, JSON.stringify(bd.sections), bd.body.length, bd.body.length);
   }
+  if (b.topic !== undefined) {
+    const topic = clampStr(b.topic, 120).replace(/\s+/g, " ");
+    if (topic.length < 2) return fail(400, "bad_topic", "נושא הסיכום קצר מדי.");
+    const tv = await checkText(env, topic, { isNew: isNew(u) });
+    if (!tv.ok) return fail(422, tv.code, tv.message);
+    sets.push("topic=?");
+    args.push(topic);
+  }
+  if (b.published !== undefined) {
+    const published = clampStr(b.published, 10);
+    if (!DATE_RE.test(published)) return fail(400, "bad_date", "תאריך הפרסום בפורמט YYYY-MM-DD.");
+    sets.push("published=?");
+    args.push(published);
+  }
   if (b.lecturer !== undefined || b.lessonDate !== undefined || b.lessonNo !== undefined) {
     const lf = lessonFields({ lecturer: b.lecturer ?? d.lecturer_name, lessonDate: b.lessonDate ?? d.lesson_date, lessonNo: b.lessonNo ?? d.lesson_no });
     if (lf instanceof Response) return lf;
@@ -300,45 +420,79 @@ export async function deleteDoc(env: Env, id: string, u: User | null, admin = fa
   const d = await env.DB.prepare("SELECT id, user_id, r2_key FROM campus_docs WHERE id=?").bind(clampStr(id, 40)).first<any>();
   if (!d) return fail(404, "not_found", "המסמך לא נמצא.");
   if (!admin && d.user_id !== u?.id) return fail(403, "forbidden", "אפשר למחוק רק מסמכים שכתבת.");
-  if (d.r2_key) await env.MEDIA.delete(d.r2_key).catch(() => {}); // rows from before v2 only
+  if (d.r2_key) await env.MEDIA.delete(d.r2_key).catch(() => {}); // the uploaded file, if any
   await env.DB.prepare("DELETE FROM campus_docs WHERE id=?").bind(d.id).run();
   await setRefsStatus(env, "doc", d.id, "removed");
   return json({ ok: true });
 }
 
-// ---------- search: title first, then the body; a hit names the section it falls in ----------
+// ---------- search: directory filters (lesson, lecturer, dates) and/or free text over topic, title and body ----------
 const likeEsc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
 
-export async function searchDocs(env: Env, p: Place, qRaw: string) {
-  const q = clampStr(qRaw, 80).replace(/\s+/g, " ");
-  if (q.length < 2) return { hits: [] };
-  const w = placeWhere(p);
-  const like = `%${likeEsc(q)}%`;
-  const titleRows = (await env.DB.prepare(`SELECT ${DOC_COLS} FROM campus_docs d WHERE ${w.sql} AND d.status='visible' AND d.body IS NOT NULL AND d.title LIKE ? ESCAPE '\\' ORDER BY d.created_at DESC LIMIT 30`)
-    .bind(...w.args, like)
-    .all<any>()).results || [];
-  const hits: { doc: any; section?: number; snippet: string }[] = titleRows.map((d) => ({ doc: docOut(d), snippet: d.title }));
-  const seen = new Set(titleRows.map((d) => d.id));
-  if (hits.length < 30) {
-    const bodyRows = (await env.DB.prepare(`SELECT ${DOC_COLS}, d.body FROM campus_docs d WHERE ${w.sql} AND d.status='visible' AND d.body LIKE ? ESCAPE '\\' ORDER BY d.created_at DESC LIMIT 30`)
-      .bind(...w.args, like)
-      .all<any>()).results || [];
-    const lq = q.toLowerCase();
-    for (const d of bodyRows) {
-      if (seen.has(d.id) || hits.length >= 30) continue;
-      const body: string = d.body;
-      const i = body.toLowerCase().indexOf(lq);
-      if (i < 0) continue;
-      const before = body.slice(0, i);
-      const section = (before.match(/(^|\n)# /g) || []).length; // 0 = before the first heading
-      const from = Math.max(0, i - 80);
-      const to = Math.min(body.length, i + q.length + 80);
-      const snippet = (from > 0 ? "…" : "") + body.slice(from, to).replace(/\s+/g, " ").trim() + (to < body.length ? "…" : "");
-      const { body: _b, ...row } = d;
-      hits.push({ doc: docOut(row), section: section || undefined, snippet });
-    }
+export interface SearchQuery {
+  inst: string;
+  faculty: string;
+  year?: number | null;
+  course?: string | null;
+  lecturer?: string | null;
+  from?: string | null;
+  to?: string | null;
+  q?: string | null;
+}
+
+export async function searchDocs(env: Env, sq: SearchQuery) {
+  const q = clampStr(sq.q, 80).replace(/\s+/g, " ");
+  const where: string[] = ["d.inst=?", "d.faculty=?", "d.status='visible'", "d.body IS NOT NULL"];
+  const args: unknown[] = [sq.inst, sq.faculty];
+  if (sq.year) {
+    where.push("d.year=?");
+    args.push(sq.year);
   }
-  return { hits };
+  if (sq.course) {
+    where.push("d.course=?");
+    args.push(sq.course);
+  }
+  if (sq.lecturer) {
+    where.push("d.lecturer=?");
+    args.push(sq.lecturer);
+  }
+  // the date of a summary: its lesson date, or the day it was published
+  const dateExpr = "COALESCE(d.lesson_date, d.published)";
+  if (sq.from) {
+    where.push(`${dateExpr}>=?`);
+    args.push(sq.from);
+  }
+  if (sq.to) {
+    where.push(`${dateExpr}<=?`);
+    args.push(sq.to);
+  }
+  const filtered = !!(sq.course || sq.lecturer || sq.from || sq.to);
+  if (q.length >= 2) {
+    const like = `%${likeEsc(q)}%`;
+    where.push("(d.title LIKE ? ESCAPE '\\' OR d.topic LIKE ? ESCAPE '\\' OR d.body LIKE ? ESCAPE '\\')");
+    args.push(like, like, like);
+  } else if (!filtered) {
+    return { hits: [], total: 0 };
+  }
+  const w = where.join(" AND ");
+  const total = (await env.DB.prepare(`SELECT COUNT(*) n FROM campus_docs d WHERE ${w}`).bind(...args).first<{ n: number }>())?.n ?? 0;
+  const rows = (await env.DB.prepare(`SELECT ${DOC_COLS}, d.body FROM campus_docs d WHERE ${w} ORDER BY ${dateExpr} DESC, d.created_at DESC LIMIT 30`).bind(...args).all<any>()).results || [];
+  const lq = q.toLowerCase();
+  const hits = rows.map((d) => {
+    const { body, ...row } = d;
+    const doc = docOut(row);
+    if (q.length < 2) return { doc, snippet: d.topic || d.title };
+    const inTitle = (d.title || "").toLowerCase().includes(lq) || (d.topic || "").toLowerCase().includes(lq);
+    const i = inTitle ? -1 : String(body || "").toLowerCase().indexOf(lq);
+    if (i < 0) return { doc, snippet: d.topic && d.topic !== d.title ? `${d.title} · ${d.topic}` : d.title };
+    const text: string = body;
+    const section = (text.slice(0, i).match(/(^|\n)# /g) || []).length; // 0 = before the first heading
+    const from = Math.max(0, i - 80);
+    const to = Math.min(text.length, i + q.length + 80);
+    const snippet = (from > 0 ? "…" : "") + text.slice(from, to).replace(/\s+/g, " ").trim() + (to < text.length ? "…" : "");
+    return { doc, section: section || undefined, snippet };
+  });
+  return { hits, total };
 }
 
 // ---------- course meta: group chat link, exam period ----------
@@ -560,9 +714,10 @@ export async function applyTakedown(env: Env, contactId: string, body: { docIds?
   const authors = new Set<string>();
   for (const it of targets) {
     if (it.type === "doc") {
-      const d = await env.DB.prepare("SELECT id, user_id, r2_key, status FROM campus_docs WHERE id=?").bind(it.id).first<any>();
+      const d = await env.DB.prepare("SELECT id, user_id, r2_key, sha256, status FROM campus_docs WHERE id=?").bind(it.id).first<any>();
       if (!d || d.status === "removed") continue;
-      if (d.r2_key) await env.MEDIA.delete(d.r2_key).catch(() => {}); // rows from before v2 only
+      if (d.r2_key) await env.MEDIA.delete(d.r2_key).catch(() => {}); // the uploaded file
+      if (d.sha256) await env.DB.prepare("INSERT OR IGNORE INTO blocked_hashes (sha256, created_at, contact_id) VALUES (?,?,?)").bind(d.sha256, now(), c.id).run();
       await env.DB.prepare("UPDATE campus_docs SET status='removed' WHERE id=?").bind(d.id).run();
       await setRefsStatus(env, "doc", d.id, "removed");
       authors.add(d.user_id);
@@ -735,13 +890,13 @@ export async function grantPlan(env: Env, uid: string, days: number) {
 }
 
 // ---------- the directory: course › lecturer › lesson, and the archive of a lecturer ----------
-export async function directory(env: Env, inst: string, faculty: string, year: number) {
+export async function directory(env: Env, inst: string, faculty: string, year?: number | null) {
   const rows = (await env.DB.prepare(
-    `SELECT course, lecturer, MAX(lecturer_name) AS lecturer_name, lesson_date, COUNT(*) n FROM campus_docs
-     WHERE inst=? AND faculty=? AND year=? AND status='visible' AND body IS NOT NULL AND course IS NOT NULL
+    `SELECT course, lecturer, MAX(lecturer_name) AS lecturer_name, lesson_date, COUNT(*) n, GROUP_CONCAT(topic, '\u001f') AS topics FROM campus_docs
+     WHERE inst=? AND faculty=? ${year ? "AND year=?" : ""} AND status='visible' AND body IS NOT NULL AND course IS NOT NULL
      GROUP BY course, lecturer, lesson_date ORDER BY course, lecturer, lesson_date`,
-  ).bind(inst, faculty, year).all<any>()).results || [];
-  const courses: { course: string; n: number; lecturers: { lecturer: string | null; name: string | null; n: number; lessons: { date: string; n: number }[] }[] }[] = [];
+  ).bind(inst, faculty, ...(year ? [year] : [])).all<any>()).results || [];
+  const courses: { course: string; n: number; lecturers: { lecturer: string | null; name: string | null; n: number; lessons: { date: string; n: number; topics: string[] }[] }[] }[] = [];
   for (const r of rows) {
     let c = courses.find((x) => x.course === r.course);
     if (!c) courses.push((c = { course: r.course, n: 0, lecturers: [] }));
@@ -750,7 +905,7 @@ export async function directory(env: Env, inst: string, faculty: string, year: n
     const n = Number(r.n);
     c.n += n;
     l.n += n;
-    if (r.lesson_date) l.lessons.push({ date: r.lesson_date, n });
+    if (r.lesson_date) l.lessons.push({ date: r.lesson_date, n, topics: [...new Set(String(r.topics || "").split("\u001f").filter(Boolean))].slice(0, 5) });
   }
   return courses;
 }

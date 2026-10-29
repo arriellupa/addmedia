@@ -33,7 +33,7 @@ export async function handleAdmin(req: Request, env: Env, url: URL): Promise<Res
   if (res === "docs" && m === "GET") {
     const rows = (await env.DB.prepare(
       `SELECT d.id, d.user_id, d.user_name, d.inst, d.faculty, d.year, d.course, d.kind, d.title, d.chars, d.created_at, d.updated_at, d.status, d.link_url,
-              u.strikes AS strikes, u.email AS email, u.campus_until AS campus_until, s.full_name AS full_name, s.inst AS s_inst, s.faculty AS s_faculty, s.year AS s_year, s.track AS track, d.lecturer_name, d.lesson_date, d.lesson_no
+              u.strikes AS strikes, u.email AS email, u.campus_until AS campus_until, s.full_name AS full_name, s.inst AS s_inst, s.faculty AS s_faculty, s.year AS s_year, s.track AS track, d.lecturer_name, d.lesson_date, d.lesson_no, d.topic, d.published, d.file_type, d.sha256
        FROM campus_docs d LEFT JOIN users u ON u.id=d.user_id LEFT JOIN student_profiles s ON s.user_id=d.user_id ORDER BY d.created_at DESC LIMIT 100`,
     ).all<any>()).results || [];
     return json({ docs: rows });

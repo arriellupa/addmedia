@@ -3,9 +3,9 @@
 // the document's own room (a talkback whose body starts with `§N: `), a composer that prefixes the current
 // section, and «ציטוט»: a deep link `?doc=<id>&s=<n>` copied, or dropped into the live chat as `[כותרת · §N](link)`.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { CampusDoc, Post, api } from "../../api";
+import { API_BASE, CampusDoc, Post, api, getToken } from "../../api";
 import { ago, date } from "../../fmt";
-import { ArrowNext, ArrowPrev, Chevron, Copy, Edit, External, MessageI, Quote, Shield, X } from "../../icons";
+import { ArrowNext, ArrowPrev, Chevron, Copy, Edit, External, FileI, MessageI, Quote, Shield, X } from "../../icons";
 import { composerInsert, me, needAuth, say, sheet } from "../../state";
 import { Avatar } from "../../ui/Bits";
 import { KIND_HE, closeReader, ctab, docLink, editor, fetchBody, reader, readerSection, splitSections, takedownOpen, unslug } from "../state";
@@ -35,7 +35,7 @@ export function Reader() {
     setErr(null);
     fetchBody(d.id)
       .then(setBody)
-      .catch((e) => setErr(e?.code === "plan" || e?.status === 402 ? "הקריאה דורשת מנוי קמפוס או ניסיון חינם." : e?.message || "הטקסט לא נטען."));
+      .catch((e) => (d.file ? setBody("") : setErr(e?.code === "plan" || e?.status === 402 ? "הקריאה דורשת מנוי קמפוס או ניסיון חינם." : e?.message || "הטקסט לא נטען.")));
   }, [d.id]);
   useEffect(() => {
     document.body.classList.add("cp-reading");
@@ -55,6 +55,7 @@ export function Reader() {
   useEffect(() => {
     if (body === null) return;
     if (fromScroll.current) return void (fromScroll.current = false);
+    if (cur === 1 && main.current && main.current.scrollTop === 0) return; // the top: nothing to scroll to (a file stays in view)
     const el = main.current?.querySelector<HTMLElement>(`[data-sec="${cur}"]`);
     if (el) {
       quietUntil.current = Date.now() + 900;
@@ -194,6 +195,8 @@ export function Reader() {
                 ))}
               </div>
             )}
+            {d.file && <FileView d={d} />}
+            {d.file && body !== null && body.trim() && <div class="cp-rd-filetext">הטקסט שחולץ מהקובץ (לחיפוש ולדיון לפי סעיף):</div>}
             {sections.map((s) => (
               <section key={s.i} class="cp-rd-section" data-sec={s.i} dir="auto">
                 {s.heading && (
@@ -209,7 +212,7 @@ export function Reader() {
                 ))}
               </section>
             ))}
-            {body !== null && <div class="cp-rd-end">סוף המסמך · {d.name}</div>}
+            {body !== null && !(d.file && !body.trim()) && <div class="cp-rd-end">סוף המסמך · {d.name}</div>}
           </div>
         </div>
         <aside class={`cp-rd-talk ${talk ? "open" : ""}`} aria-label="דיון לפי סעיף">
@@ -241,6 +244,56 @@ export function Reader() {
           <MessageI size={20} />
         </button>
       </div>
+    </div>
+  );
+}
+
+/** an uploaded file: a PDF inline, a Word file rendered to HTML (with its images) by mammoth inside a sandboxed frame */
+function FileView({ d }: { d: CampusDoc }) {
+  // the frame cannot carry a bearer header, so the token travels as `t` (the server accepts it)
+  const url = `${API_BASE}${d.file!.url}${getToken() ? `?t=${encodeURIComponent(getToken()!)}` : ""}`;
+  const [html, setHtml] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (d.file?.type !== "docx") return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error("file");
+        const buf = await r.arrayBuffer();
+        const mammoth = await import("mammoth/mammoth.browser.js");
+        const out = await mammoth.convertToHtml({ arrayBuffer: buf });
+        if (alive) setHtml(out.value);
+      } catch {
+        if (alive) setErr("הקובץ לא נטען לתצוגה. אפשר להוריד אותו.");
+      }
+    })();
+    return () => void (alive = false);
+  }, [d.id]);
+  const kb = Math.max(1, Math.round((d.file!.size || 0) / 1024));
+  return (
+    <div class="cp-rd-file">
+      <div class="cp-rd-filebar">
+        <FileI size={14} /> {d.file!.type === "pdf" ? "PDF" : "Word"} · <span class="num">{kb}KB</span>
+        <span class="pane-sp" />
+        <a class="btn btn-secondary btn-sm" href={url} download target="_blank" rel="noopener">
+          הורדה
+        </a>
+      </div>
+      {d.file!.type === "pdf" ? (
+        <iframe class="cp-rd-pdf" src={url + "#view=FitH"} title={d.title} />
+      ) : err ? (
+        <div class="cp-state err">{err}</div>
+      ) : html === null ? (
+        <div class="cp-rd-skel" aria-busy="true">
+          {[90, 100, 70].map((w, i) => (
+            <span key={i} class="skel" style={{ width: `${w}%` }} />
+          ))}
+        </div>
+      ) : (
+        <iframe class="cp-rd-docx" sandbox="" title={d.title} srcdoc={`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><style>body{font-family:"IBM Plex Sans Hebrew",system-ui,sans-serif;font-size:17px;line-height:1.7;padding:8px 4px;color:#1c1a22;margin:0;max-width:70ch}img{max-width:100%;height:auto}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}h1,h2,h3{font-weight:600}</style></head><body>${html}</body></html>`} />
+      )}
     </div>
   );
 }

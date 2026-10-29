@@ -169,7 +169,7 @@ r = await api("/v1/me/student", { method: "PUT", token: A.token, body: { fullNam
 ok(r.status === 200 && r.j.student.fullName === "אליס כהן" && r.j.student.email === "alice@example.com" && r.j.student.year === 1 && r.j.student.track === "משפט וטכנולוגיה", "student profile saved with the login email", JSON.stringify(r.j));
 r = await api("/v1/me/student", { token: A.token });
 ok(r.j.student?.faculty === "משפטים", "profile is read back");
-r = await api("/v1/me/student", { method: "PUT", token: B.token, body: { fullName: "בוב לוי", inst: "reichman", faculty: "משפטים", year: 2, track: "כללי" } });
+r = await api("/v1/me/student", { method: "PUT", token: B.token, body: { fullName: "בוב לוי", inst: "reichman", faculty: "משפטים", year: 1, track: "כללי" } });
 ok(r.j.student?.fullName === "בוב לוי", "second student identified");
 r = await api(`/v1/campus/docs?${q(place)}`, { method: "POST", token: A.token, body: { kind: "summary", title: "סיכום שיעור 3: חוזה אחיד", body: BODY } });
 ok(r.status === 400 && r.j.error.code === "author", "a summary without the author declaration is refused", JSON.stringify(r.j));
@@ -229,7 +229,7 @@ console.log("campus v2: search, articles, course meta, events, student gate in r
   r = await api(`/v1/campus/search?${q({ ...pl, q: "יסוד נפשי בכלל" })}`, { token: B.token });
   ok(r.j.hits.length === 1 && r.j.hits[0].section === undefined, "a hit before the first heading has no section");
   r = await api(`/v1/campus/search?${q({ ...pl, q: "מחשבה" })}`, { token: B.token });
-  ok(r.j.hits.length === 2 && r.j.hits[0].doc.id === d2 && !r.j.hits[0].section && r.j.hits[1].doc.id === d1, "title matches come first, then body matches", JSON.stringify(r.j.hits.map((h) => h.doc.id)));
+  ok(r.j.hits.length === 2 && r.j.hits[0].doc.id === d2 && !r.j.hits[0].section && r.j.hits[1].doc.id === d1, "newest first: the exercise (title hit) then the summary (body hit)", JSON.stringify(r.j.hits.map((h) => h.doc.id)));
   r = await api(`/v1/campus/search?${q({ ...pl, q: "100%_x" })}`, { token: B.token });
   ok(r.j.hits.length === 0, "LIKE wildcards in the query are escaped");
   // articles are links
@@ -325,6 +325,76 @@ console.log("campus v2: search, articles, course meta, events, student gate in r
   ok(r.j.docs.length === 2 && r.j.docs[0].id === dLec, "the lecturer archive lists his lessons across courses", JSON.stringify(r.j));
   r = await api(`/v1/campus/docs/${dLec}`, { method: "PUT", token: A.token, body: { lessonNo: 5 } });
   ok(r.j.doc.lessonNo === 5 && r.j.doc.lecturerName === "פרופ׳ דן לוי", "lesson fields are editable in place");
+  ok(lec.lessons[0].topics.length === 0 || Array.isArray(lec.lessons[0].topics), "lessons carry a topics array");
+
+  console.log("addstudent: fields from the profile, topic & published, files, search filters");
+  r = await api(`/v1/campus/docs?${q({ inst: pl.inst, faculty: "הנדסה", year: 4, course: pl.course })}`, { method: "POST", token: A.token, body: { kind: "summary", topic: "הגנה עצמית", body: "סיכום על הגנה עצמית בדין הפלילי, ארוך מספיק.", author: true, lecturer: "פרופ׳ דן לוי", lessonDate: "2026-11-17" } });
+  ok(r.status === 200 && r.j.doc.place.faculty === "משפטים" && r.j.doc.place.year === 1 && r.j.doc.track === "משפט וטכנולוגיה" && r.j.doc.topic === "הגנה עצמית" && r.j.doc.title === "הגנה עצמית" && r.j.doc.published === new Date().toISOString().slice(0, 10) && r.j.doc.file === null, "faculty, year and track come from the profile; title defaults to the topic; published to today", JSON.stringify(r.j.doc));
+  const dTopic = r.j.doc.id;
+  r = await api(`/v1/campus/docs?${q(pl)}`, { method: "POST", token: A.token, body: { kind: "summary", topic: "x", body: "סיכום עם נושא קצר מדי, ארוך מספיק.", author: true } });
+  ok(r.status === 400 && r.j.error.code === "bad_topic", "a one-letter topic is refused");
+  r = await api(`/v1/campus/docs/${dTopic}`, { method: "PUT", token: A.token, body: { topic: "הגנה עצמית וצורך", published: "2026-10-01" } });
+  ok(r.j.doc.topic === "הגנה עצמית וצורך" && r.j.doc.published === "2026-10-01", "topic and published are editable");
+  r = await api(`/v1/campus/tree?${q({ inst: pl.inst, faculty: pl.faculty })}`, { token: B.token });
+  const lec2 = r.j.courses.find((c) => c.course === pl.course.toLowerCase())?.lecturers.find((l) => l.lecturer === "פרופ-דן-לוי");
+  ok(r.j.place.year === undefined && lec2 && lec2.lessons.find((l) => l.date === "2026-11-17")?.topics[0] === "הגנה עצמית וצורך", "the tree without a year spans the faculty and lessons carry topics", JSON.stringify(lec2));
+  // files: a tiny PDF and a tiny docx (a zip)
+  const PDF = Buffer.concat([Buffer.from(`%PDF-1.4 ${RUN}\n`), Buffer.alloc(200, 32)]);
+  const DOCX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from(`word/document.xml ${RUN}`), Buffer.alloc(100, 0)]);
+  const fq = (extra = {}) => q({ inst: pl.inst, course: pl.course, topic: "סיכום מהקובץ", lecturer: "ד״ר רונית בר", lessonDate: "2026-11-24", author: 1, ...extra });
+  r = await api(`/v1/campus/docs/file?${fq({ author: 0 })}`, { method: "POST", token: A.token, raw: PDF, headers: { "Content-Type": "application/pdf" } });
+  ok(r.status === 400 && r.j.error.code === "author", "a file needs the author declaration");
+  r = await api(`/v1/campus/docs/file?${fq()}`, { method: "POST", token: A.token, raw: Buffer.from("not a file at all, really not"), headers: { "Content-Type": "application/pdf" } });
+  ok(r.status === 415 && r.j.error.code === "bad_type", "magic bytes are checked");
+  r = await api(`/v1/campus/docs/file?${fq()}`, { method: "POST", token: C.token, raw: PDF, headers: { "Content-Type": "application/pdf" } });
+  ok(r.status === 403 && r.j.error.code === "student", "a file upload needs a student profile");
+  r = await api(`/v1/campus/docs/file?${fq()}`, { method: "POST", token: A.token, raw: PDF, headers: { "Content-Type": "application/pdf" } });
+  ok(r.status === 200 && r.j.doc.file?.type === "pdf" && r.j.doc.file.size === PDF.length && r.j.doc.file.url.endsWith("/file") && r.j.doc.chars === 0 && r.j.doc.sections.length === 0 && r.j.doc.topic === "סיכום מהקובץ" && r.j.doc.lecturer === "ד-ר-רונית-בר", "a PDF summary is uploaded with its fields", JSON.stringify(r.j));
+  const dPdf = r.j.doc.id;
+  r = await api(`/v1/campus/docs/file?${fq({ topic: "סיכום מוורד" })}`, { method: "POST", token: A.token, raw: DOCX, headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
+  ok(r.status === 200 && r.j.doc.file?.type === "docx", "a Word summary is uploaded", JSON.stringify(r.j));
+  const dDocx = r.j.doc.id;
+  let f = await fetch(`${BASE}/v1/campus/docs/${dPdf}/file`, { headers: { Authorization: `Bearer ${B.token}` } });
+  ok(f.status === 200 && f.headers.get("content-type") === "application/pdf" && f.headers.get("content-disposition").startsWith("inline") && f.headers.get("content-security-policy"), "the PDF is served inline with CSP", f.status + " " + f.headers.get("content-disposition"));
+  f = await fetch(`${BASE}/v1/campus/docs/${dDocx}/file`, { headers: { Authorization: `Bearer ${B.token}` } });
+  ok(f.status === 200 && f.headers.get("content-disposition").startsWith("attachment") && f.headers.get("content-type").includes("wordprocessingml"), "the docx is served as a download");
+  ok((await fetch(`${BASE}/v1/campus/docs/${dPdf}/file`)).status === 402, "files sit behind the paywall too");
+  r = await api(`/v1/campus/docs/${dPdf}/text`, { method: "POST", token: B.token, raw: "טקסט של מישהו אחר", headers: { "Content-Type": "text/plain" } });
+  ok(r.status === 403 && r.j.error.code === "forbidden", "only the owner posts the extracted text");
+  r = await api(`/v1/campus/docs/${dPdf}/text`, { method: "POST", token: A.token, raw: "# הקדמה\nהטקסט שחולץ מהקובץ על עבירות רכוש.\n# גניבה\nיסודות עבירת הגניבה.", headers: { "Content-Type": "text/plain" } });
+  ok(r.j.ok && r.j.sections.length === 2 && r.j.chars > 20, "the extracted text becomes the body with its sections", JSON.stringify(r.j));
+  r = await api(`/v1/campus/docs/${dPdf}`, { token: B.token });
+  ok(r.j.body.includes("עבירות רכוש") && r.j.doc.file?.type === "pdf" && r.j.doc.sections[1].heading === "גניבה", "the reader gets the body and the file");
+  r = await api(`/v1/campus/docs/file?${fq()}`, { method: "POST", token: B.token, raw: PDF, headers: { "Content-Type": "application/pdf" } });
+  ok(r.status === 200, "the same file may be uploaded again while its hash is not blocked");
+  const dPdfB = r.j.doc.id;
+  // search: directory filters without text, text with filters, dates, total, newest first
+  r = await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty, lecturer: "ד״ר רונית בר" })}`, { token: B.token });
+  ok(r.j.total === 3 && r.j.hits.length === 3 && r.j.hits.every((h) => h.doc.lecturer === "ד-ר-רונית-בר"), "a lecturer filter alone finds her summaries across the faculty", JSON.stringify(r.j.hits.map((h) => h.doc.id)));
+  r = await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty, year: pl.year, course: pl.course, from: "2026-11-15", to: "2026-11-20" })}`, { token: B.token });
+  ok(r.j.total === 1 && r.j.hits[0].doc.id === dTopic, "a date range on the lesson date", JSON.stringify(r.j));
+  r = await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty, q: "עבירות רכוש" })}`, { token: B.token });
+  ok(r.j.total === 1 && r.j.hits[0].doc.id === dPdf && r.j.hits[0].section === 1 && r.j.hits[0].snippet.includes("עבירות רכוש"), "free text searches the extracted body of a file", JSON.stringify(r.j));
+  r = await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty, q: "הגנה עצמית", course: pl.course })}`, { token: B.token });
+  ok(r.j.total === 1 && r.j.hits[0].doc.id === dTopic && !r.j.hits[0].section, "text matches the topic as well");
+  r = await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty, lecturer: "פרופ׳ דן לוי" })}`, { token: B.token });
+  ok(r.j.hits[0].doc.id === dTopic && r.j.hits[r.j.hits.length - 1].doc.id === dLec, "hits are newest first by lesson date", JSON.stringify(r.j.hits.map((h) => [h.doc.id, h.doc.lessonDate])));
+  ok((await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty, from: "1.1.2026" })}`, { token: B.token })).status === 400, "a bad date filter is refused");
+  ok((await api(`/v1/campus/search?${q({ inst: pl.inst, faculty: pl.faculty })}`, { token: B.token })).j.total === 0, "no text and no filter → nothing");
+  // deleting a file document deletes the file; a final takedown blocks the hash
+  r = await api(`/v1/campus/docs/${dDocx}`, { method: "DELETE", token: A.token });
+  ok(r.j.ok && (await fetch(`${BASE}/v1/campus/docs/${dDocx}/file`, { headers: { Authorization: `Bearer ${B.token}` } })).status === 404, "deleting a file document removes the file");
+  r = await api("/v1/campus/takedown", { method: "POST", token: B.token, body: { name: "בוב לוי", phone: "0521111111", role: "lecturer", reason: "הקובץ הזה הוא המצגת שלי, סרוקה.", items: [{ type: "doc", id: dPdf }] } });
+  ok(r.j.held === 1, "a notice holds the file document");
+  ok((await fetch(`${BASE}/v1/campus/docs/${dPdf}/file`, { headers: { Authorization: `Bearer ${B.token}` } })).status === 404 && (await fetch(`${BASE}/v1/campus/docs/${dPdf}/file`, { headers: { Authorization: `Bearer ${A.token}` } })).status === 200, "a held file is served to its owner only");
+  r = await api(`/v1/admin/campus/takedown/${r.j.id}/apply`, { method: "POST", token: ADMIN, body: {} });
+  ok(r.j.removed[0] === dPdf, "final removal of the file document");
+  ok((await fetch(`${BASE}/v1/campus/docs/${dPdf}/file`, { headers: { Authorization: `Bearer ${A.token}` } })).status === 404, "the file is gone");
+  r = await api(`/v1/campus/docs/file?${fq()}`, { method: "POST", token: B.token, raw: PDF, headers: { "Content-Type": "application/pdf" } });
+  ok(r.status === 403 && r.j.error.code === "blocked", "the same bytes cannot be uploaded again", JSON.stringify(r.j));
+  await api(`/v1/campus/docs/${dPdfB}`, { method: "DELETE", token: B.token });
+  await api(`/v1/campus/docs/${dTopic}`, { method: "DELETE", token: A.token });
+  ok((await api("/v1/me", { token: A.token })).j.user.strikes === 1, "alice has one strike from the file takedown");
   // quotas (settings) and the plan
   r = await api("/v1/me/campus", { token: A.token });
   ok(r.j.quota.docsPerMonth === 20 && r.j.quota.charsPerDoc === 60000 && r.j.quota.charsTotal === 1000000 && r.j.quota.docsThisMonth >= 5 && r.j.quota.charsUsed > 100 && r.j.plan.active && r.j.plan.trialUntil && r.j.plan.until === null && r.j.student.fullName === "אליס כהן", "me/campus carries quota, plan and profile", JSON.stringify(r.j));
@@ -424,14 +494,14 @@ console.log("campus v2: search, articles, course meta, events, student gate in r
   r = await api(`/v1/campus/docs/${d1}`, { method: "PUT", token: A.token, body: { title: "ניסיון להחיות" } });
   ok(r.status === 404, "nor editable");
   r = await api("/v1/me", { token: A.token });
-  ok(r.j.user.strikes === 1 && r.j.holds === 0, "the author got a strike and no holds remain", JSON.stringify(r.j.user));
+  ok(r.j.user.strikes === 2 && r.j.holds === 0, "the author got a strike and no holds remain", JSON.stringify(r.j.user));
   r = await api("/v1/admin/contacts", { token: ADMIN });
   ok(r.j.contacts.find((c) => c.id === td3)?.status === "handled", "the notice is marked handled");
   r = await api("/v1/admin/docs", { token: ADMIN });
   const ad = r.j.docs.find((d) => d.id === d1);
-  ok(ad?.status === "removed" && ad?.strikes === 1 && ad?.full_name === "אליס כהן" && ad?.track === "משפט וטכנולוגיה", "admin docs table shows status, strikes and the author's profile", JSON.stringify(ad));
+  ok(ad?.status === "removed" && ad?.strikes === 2 && ad?.full_name === "אליס כהן" && ad?.track === "משפט וטכנולוגיה", "admin docs table shows status, strikes and the author's profile", JSON.stringify(ad));
   r = await api("/v1/admin/users?q=" + encodeURIComponent("אליס כהן"), { token: ADMIN });
-  ok(r.j.users.some((u) => u.full_name === "אליס כהן" && u.strikes === 1), "admin users lookup finds by full name and shows the profile");
+  ok(r.j.users.some((u) => u.full_name === "אליס כהן" && u.strikes === 2), "admin users lookup finds by full name and shows the profile");
   // all: true removes every visible doc in the course, and three strikes block writing
   r = await write("סיכום של בוב", B.token, "טקסט של בוב על יסוד נפשי, ארוך מספיק.");
   ok(r.status === 200, "a second student writes in the course");
@@ -442,17 +512,18 @@ console.log("campus v2: search, articles, course meta, events, student gate in r
   ok((await api(`/v1/campus/docs?${q(pl)}`, { token: B.token })).j.coverage.docs === 0, "the course is empty afterwards");
   r = await api(`/v1/admin/campus/takedown/${td3}/apply`, { method: "POST", token: ADMIN, body: { docIds: [d1, d3] } });
   ok(r.j.ok && r.j.removed.length === 0, "applying again on removed docs changes nothing");
-  const d4 = (await write("סיכום שיעור 2", A.token, "עוד טקסט ארוך מספיק על עבירות ניסיון.")).j.doc.id;
+  r = await api("/v1/me", { token: A.token });
+  ok(r.j.user.strikes === 3, "three notices, three strikes", JSON.stringify(r.j.user));
+  const d4 = (await write("סיכום שיעור 2", B.token, "עוד טקסט ארוך מספיק על עבירות ניסיון.")).j.doc.id;
   r = await api("/v1/campus/takedown", { method: "POST", body: { name: "מחבר", email: "author@example.com", code: await tdStart("author@example.com"), phone: "0531234567", role: "author", reason: "מאמר שלי הועלה בלי רשות, פנייה שלישית.", docIds: [d4] } });
   ok(r.j.ok && r.j.held === 1, "a notice without a place takes it from the document");
   r = await api(`/v1/admin/campus/takedown/${r.j.id}/apply`, { method: "POST", token: ADMIN, body: {} });
-  ok(r.j.ok && r.j.removed[0] === d4, "apply without a body removes the held items of the notice");
-  r = await api("/v1/me", { token: A.token });
-  ok(r.j.user.strikes === 3, "three notices, three strikes", JSON.stringify(r.j.user));
+  ok(r.j.ok && r.j.removed[0] === d4 && r.j.struck[0] === B.user.id, "apply without a body removes the held items of the notice");
   r = await write("עוד סיכום", A.token, "טקסט ארוך מספיק שלא אמור להתפרסם.");
   ok(r.status === 403 && r.j.error.code === "strikes", "after three strikes writing is refused", JSON.stringify(r.j));
   // abuse guard: three reverted notices from one requester
-  const d5 = (await write("סיכום של בוב 2", B.token, "טקסט של בוב, ארוך מספיק, לבדיקה.")).j.doc.id;
+  await api("/v1/me/student", { method: "PUT", token: C.token, body: { fullName: "קרול שמש", inst: "reichman", faculty: "משפטים", year: 1, track: "כללי" } });
+  const d5 = (await write("סיכום של קרול", C.token, "טקסט של קרול, ארוך מספיק, לבדיקה.")).j.doc.id;
   for (let i = 0; i < 2; i++) {
     const n = await api("/v1/campus/takedown", { method: "POST", body: { name: "טרול", email: `troll${i}.${RUN}@example.com`, code: await tdStart(`troll${i}.${RUN}@example.com`), phone: TPHONE, role: "other", reason: "סתם, לא אוהב את הסיכום הזה.", items: [{ type: "doc", id: d5 }] } });
     await api(`/v1/admin/campus/takedown/${n.j.id}/restore`, { method: "POST", token: ADMIN });
@@ -460,7 +531,7 @@ console.log("campus v2: search, articles, course meta, events, student gate in r
   r = await api("/v1/campus/takedown", { method: "POST", body: { name: "טרול", email: `troll9.${RUN}@example.com`, code: await tdStart(`troll9.${RUN}@example.com`), phone: TPHONE, role: "other", reason: "סתם, לא אוהב את הסיכום הזה.", items: [{ type: "doc", id: d5 }] } });
   ok(r.j.ok, "two reverted notices still allow a third");
   await api(`/v1/admin/campus/takedown/${r.j.id}/restore`, { method: "POST", token: ADMIN });
-  r = await api("/v1/campus/takedown", { method: "POST", body: { name: "טרול", email: "troll8@example.com", code: await tdStart("troll8@example.com"), phone: "0587654321", role: "other", reason: "סתם, לא אוהב את הסיכום הזה.", items: [{ type: "doc", id: d5 }] } });
+  r = await api("/v1/campus/takedown", { method: "POST", body: { name: "טרול", email: `troll8.${RUN}@example.com`, code: await tdStart(`troll8.${RUN}@example.com`), phone: TPHONE.replace("-", ""), role: "other", reason: "סתם, לא אוהב את הסיכום הזה.", items: [{ type: "doc", id: d5 }] } });
   ok(r.status === 429 && r.j.error.code === "abuse", "three reverted notices block the phone number", JSON.stringify(r.j));
   ok((await api(`/v1/campus/docs/${d5}`, { token: B.token })).status === 200, "and the document is visible again");
 }

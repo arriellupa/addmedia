@@ -151,8 +151,15 @@ export interface CampusDoc {
   lessonNo?: number | null;
   /** `hold` after a takedown request: only the author sees it, with a label */
   status?: string;
+  /** AddStudent: the summary's topic and its publication date */
+  topic?: string | null;
+  published?: string | null;
+  /** an uploaded Word / PDF file, when the summary is a file */
+  file?: { url: string; type: "pdf" | "docx"; size: number } | null;
 }
-export interface DirectoryTree { courses?: { course: string | null; n?: number; lecturers: { lecturer: string | null; name?: string | null; n: number; lessons: { date: string | null; n: number }[] }[] }[] }
+export interface SearchFilters { q?: string; year?: number; course?: string; lecturer?: string; from?: string; to?: string }
+export interface DocMeta { course?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string }
+export interface DirectoryTree { courses?: { course: string | null; n?: number; lecturers: { lecturer: string | null; name?: string | null; n: number; lessons: { date: string | null; n: number; topics?: string[] }[] }[] }[] }
 export interface TakedownItem { type: "doc" | "post" | "chat"; id: string; sections?: number[] }
 export interface Material { type: "doc" | "media"; id: string; title: string; kind?: string; ts: number; link?: string; media?: string }
 export interface Coverage { docs: number; summaries: number; exercises?: number; articles: number }
@@ -187,11 +194,20 @@ export const api = {
   lecturerDocs: (inst: string, faculty: string, lecturer: string) => call<{ docs: CampusDoc[] }>(`/v1/campus/lecturer?${new URLSearchParams({ inst, faculty, lecturer })}`),
   campusDocs: (pl: CampusPlace, kind?: DocKind) => call<{ docs: CampusDoc[]; title: string; url: string; coverage?: Coverage }>(`/v1/campus/docs?${placeQ(pl, kind ? { kind } : {})}`),
   /** a text document: the student's own words (`author: true` is the declaration); an article carries a link too */
-  createDoc: (pl: CampusPlace, b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; author: true }) => call<{ doc: CampusDoc }>(`/v1/campus/docs?${placeQ(pl)}`, { method: "POST", body: b }),
+  createDoc: (pl: CampusPlace, b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; author: true }) => call<{ doc: CampusDoc }>(`/v1/campus/docs?${placeQ(pl)}`, { method: "POST", body: b }),
   updateDoc: (id: string, b: { title?: string; body?: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number | null }) => call<{ doc: CampusDoc }>(`/v1/campus/docs/${id}`, { method: "PUT", body: b }),
+  /** AddStudent: a Word / PDF summary — the raw file, then the text extracted on the device */
+  createDocFile: (pl: CampusPlace, m: DocMeta & { title: string }, file: Blob, type: "pdf" | "docx") =>
+    call<{ doc: CampusDoc }>(`/v1/campus/docs/file?${placeQ({ ...pl, course: m.course || pl.course }, { title: m.title, author: "1", ...(m.lecturer ? { lecturer: m.lecturer } : {}), ...(m.lessonDate ? { lessonDate: m.lessonDate } : {}), ...(m.lessonNo ? { lessonNo: String(m.lessonNo) } : {}), ...(m.topic ? { topic: m.topic } : {}), ...(m.published ? { published: m.published } : {}) })}`, { method: "POST", raw: file, type: type === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+  putDocText: (id: string, text: string) => call<{ ok: boolean; sections?: DocSection[] }>(`/v1/campus/docs/${id}/text`, { method: "POST", raw: new Blob([text], { type: "text/plain" }), type: "text/plain; charset=utf-8" }),
+  docFileUrl: (id: string) => `${API_BASE}/v1/campus/docs/${id}/file`,
   getDoc: (id: string) => call<{ doc: CampusDoc; body: string }>(`/v1/campus/docs/${id}`),
   deleteDoc: (id: string) => call(`/v1/campus/docs/${id}`, { method: "DELETE" }),
   campusSearch: (pl: CampusPlace, q: string) => call<{ hits: SearchHit[] }>(`/v1/campus/search?${placeQ(pl, { q })}`),
+  /** AddStudent: free text and/or directory filters over a faculty (year optional) */
+  searchDocs: (inst: string, faculty: string, f: SearchFilters) =>
+    call<{ hits: SearchHit[]; total?: number }>(`/v1/campus/search?${new URLSearchParams({ inst, faculty, ...(f.year ? { year: String(f.year) } : {}), ...(f.course ? { course: f.course } : {}), ...(f.lecturer ? { lecturer: f.lecturer } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}), ...(f.q ? { q: f.q } : {}) })}`),
+  facultyTree: (inst: string, faculty: string, year?: number) => call<DirectoryTree>(`/v1/campus/tree?${new URLSearchParams({ inst, faculty, ...(year ? { year: String(year) } : {}) })}`),
   course: (pl: CampusPlace) => call<CourseMeta>(`/v1/campus/course?${placeQ(pl)}`),
   setCourse: (pl: CampusPlace, b: { chatUrl?: string | null; examUntil?: string | null }) => call<CourseMeta>(`/v1/campus/course?${placeQ(pl)}`, { method: "PUT", body: b }),
   events: (pl: CampusPlace) => call<{ events: CampusEvent[] }>(`/v1/campus/events?${placeQ(pl)}`),

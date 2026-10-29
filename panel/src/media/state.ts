@@ -161,8 +161,13 @@ export const slug = (s: string) =>
     .slice(0, 60);
 export const unslug = (s: string | null | undefined) => (s || "").replace(/-/g, " ");
 
+/** the app's route base: the media page (/media) or AddStudent (/student) */
+export const appBase = signal<"/media" | "/student">(location.pathname.startsWith("/student") ? "/student" : "/media");
+export const homePath = () => (appBase.value === "/student" ? "/student/" : "/media/campus");
+/** a follow is stored with the media page's path, whatever the host */
+export const followPath = (p: CampusPlace) => `/media/campus/${p.inst}/${p.faculty}/${p.year}${p.course ? "/" + p.course : ""}`;
 export const placeUrl = (p: CampusPlace) => `https://${CAMPUS_HOST}/${p.inst}/${p.faculty}/${p.year}${p.course ? "/" + p.course : ""}`;
-export const placePath = (p: CampusPlace) => `/media/campus/${p.inst}/${p.faculty}/${p.year}${p.course ? "/" + p.course : ""}`;
+export const placePath = (p: CampusPlace) => `${appBase.value}/campus/${p.inst}/${p.faculty}/${p.year}${p.course ? "/" + p.course : ""}`;
 export function placeTitle(p: CampusPlace, withCourse = true): string {
   const inst = tree.value?.institutions.find((i) => i.id === p.inst)?.name || p.inst;
   return `${inst} · ${unslug(p.faculty)} · שנה ${YEAR_HE[p.year] || p.year}${withCourse && p.course ? " · " + unslug(p.course) : ""}`;
@@ -173,7 +178,7 @@ export const instName = (id: string) => tree.value?.institutions.find((i) => i.i
 export const currentPath = computed<{ path: string; title: string } | null>(() => {
   if (mode.value === "campus") {
     const pl = place.value;
-    return pl ? { path: placePath(pl), title: placeTitle(pl) } : null;
+    return pl ? { path: followPath(pl), title: placeTitle(pl) } : null;
   }
   const p = page.value;
   if (!p) return null;
@@ -192,13 +197,13 @@ export const followed = computed(() => {
 export function parseLocation(): { mode: Mode; place?: CampusPlace; url?: string; title?: string } {
   const path = location.pathname.replace(/\/+$/, "");
   const q = new URLSearchParams(location.search);
-  const m = path.match(/^\/media\/campus\/([^/]+)\/([^/]+)\/([1-6])(?:\/([^/]+))?$/);
+  const m = path.match(/^\/(?:media|student)\/campus\/([^/]+)\/([^/]+)\/([1-6])(?:\/([^/]+))?$/);
   if (m) {
     const doc = q.get("doc");
     if (doc) pendingDoc.value = { id: doc, section: Math.max(1, Number(q.get("s")) || 1) };
     return { mode: "campus", place: { inst: decodeURIComponent(m[1]), faculty: decodeURIComponent(m[2]), year: Number(m[3]), course: m[4] ? decodeURIComponent(m[4]) : undefined } };
   }
-  if (path === "/media/campus") return { mode: "campus" };
+  if (path === "/media/campus" || path === "/student" || path.startsWith("/student/")) return { mode: "campus" };
   const s = path.match(/^\/media\/site\/([a-z0-9.-]+)$/i);
   if (s) return { mode: "center", url: `https://${s[1].toLowerCase()}/`, title: s[1].toLowerCase() };
   const u = q.get("url");
@@ -240,8 +245,8 @@ export function openPlace(pl: CampusPlace, replace = false) {
   loadDirTree();
 }
 
-/** leave the place: the home (follows) or the picker */
-export function goHome() {
+/** leave the place without touching the address (the back button already did) */
+export function clearPlace() {
   batch(() => {
     mode.value = "campus";
     place.value = null;
@@ -250,8 +255,12 @@ export function goHome() {
     picker.value = false;
     searchOpen.value = false;
   });
-  push("/media/campus");
   setPage(null);
+}
+/** leave the place: the home (follows) or the picker */
+export function goHome() {
+  clearPlace();
+  push(homePath());
 }
 
 export function openUrl(url: string, title?: string, replace = false) {
@@ -304,7 +313,7 @@ export function toggleMode() {
       place.value = null;
       picker.value = true;
     });
-    push("/media/campus");
+    push(homePath());
     setPage(null);
   }
 }
@@ -443,6 +452,13 @@ export function docError(e: any): string {
   switch (e?.code) {
     case "student":
       return "כדי להשתתף בקמפוס צריך להזדהות: שם, פקולטה, שנה ומגמה.";
+    case "blocked":
+      return "הקובץ הזה הוסר בעבר לבקשת בעל הזכויות, ולכן אי אפשר לפרסם אותו שוב.";
+    case "bad_file":
+    case "bad_type":
+      return "רק קובצי Word (.docx) או PDF.";
+    case "too_large":
+      return "הקובץ גדול מדי (עד 15MB).";
     case "author":
       return "צריך לאשר שכתבתם או ערכתם את הטקסט במילים שלכם.";
     case "strikes":
@@ -468,7 +484,7 @@ export function docError(e: any): string {
   return e?.message || "השמירה נכשלה. נסו שוב.";
 }
 
-export async function saveDoc(b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; course?: string }, existing?: CampusDoc): Promise<CampusDoc | null> {
+export async function saveDoc(b: { kind: DocKind; title: string; body: string; link?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; topic?: string; published?: string; course?: string }, existing?: CampusDoc): Promise<CampusDoc | null> {
   const base = place.value;
   if (!base) return null;
   const pl: CampusPlace = b.course ? { ...base, course: b.course } : base;
@@ -494,6 +510,42 @@ export async function saveDoc(b: { kind: DocKind; title: string; body: string; l
     say(docError(e), "err");
     return null;
   }
+}
+
+/** AddStudent: a Word / PDF summary. The file goes up as it is; the text is extracted on the device and posted after,
+ *  so the search and the reader work; when the extraction fails the file is still published. */
+export async function saveDocFile(m: { title: string; course: string; topic?: string; lecturer?: string; lessonDate?: string; lessonNo?: number; published?: string }, file: File, onProgress?: (stage: "upload" | "extract" | "text", done?: number, total?: number) => void): Promise<{ doc: CampusDoc; textOk: boolean } | null> {
+  const base = place.value;
+  if (!base) return null;
+  const type: "pdf" | "docx" = /\.pdf$/i.test(file.name) || file.type === "application/pdf" ? "pdf" : "docx";
+  let doc: CampusDoc;
+  try {
+    onProgress?.("upload");
+    doc = (await api.createDocFile({ ...base, course: m.course }, m, file, type)).doc;
+  } catch (e: any) {
+    if (studentRetry(e, () => {})) return null;
+    say(docError(e), "err");
+    return null;
+  }
+  docs.value = [doc, ...docs.value];
+  loadDirTree();
+  let textOk = false;
+  try {
+    onProgress?.("extract", 0, 1);
+    const im = await import("./importText");
+    const text = await im.importFile(file, (a, b) => onProgress?.("extract", a, b));
+    if (text.trim().length >= 20) {
+      onProgress?.("text");
+      const r = await api.putDocText(doc.id, text.slice(0, 60_000));
+      bodyCache.set(doc.id, text.slice(0, 60_000));
+      if (r.sections) doc = { ...doc, sections: r.sections, chars: text.length };
+      else doc = { ...doc, sections: splitSections(text).map((x) => ({ i: x.i, heading: x.heading })), chars: text.length };
+      docs.value = docs.value.map((d) => (d.id === doc.id ? doc : d));
+      textOk = true;
+    }
+  } catch {}
+  say(textOk ? "הסיכום פורסם." : "הקובץ פורסם. הטקסט לא חולץ, אז החיפוש בתוכו לא זמין.");
+  return { doc, textOk };
 }
 
 /** the bodies already fetched (the list carries only sections and counts) */

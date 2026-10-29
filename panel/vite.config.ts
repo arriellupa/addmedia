@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: 0,
     rollupOptions: {
       // the web build has a second page: the media page (/media/), the extension only the panel
-      input: mode === "extension" ? { panel: here("index.html") } : { panel: here("index.html"), media: here("media.html") },
+      input: mode === "extension" ? { panel: here("index.html") } : { panel: here("index.html"), media: here("media.html"), student: here("student.html") },
       output: { entryFileNames: "assets/[name].js", chunkFileNames: "assets/[name].js", assetFileNames: "assets/[name][extname]" },
     },
   },

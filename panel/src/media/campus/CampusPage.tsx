@@ -38,7 +38,7 @@ export function CampusPage({ radar, media }: { radar: any; media: any }) {
   );
 }
 
-function Course({ radar, media }: { radar: any; media: any }) {
+export function Course({ radar, media }: { radar: any; media?: any }) {
   const pl = place.value!;
   const b = bundle.value;
   const tab = ctab.value;
@@ -129,7 +129,9 @@ function Course({ radar, media }: { radar: any; media: any }) {
                 ["media", "מדיה", b?.room.mediaCount],
                 ["people", "אנשים", undefined],
               ] as const
-            ).map(([k, label, n]) => (
+            )
+              .filter(([k]) => k !== "media" || !!media)
+              .map(([k, label, n]) => (
               <button key={k} role="tab" aria-selected={tab === k} class={`cp-tab ${tab === k ? "on" : ""}`} onClick={() => (ctab.value = k)}>
                 {k === "chat" && chatActive.value && <LiveDot pulse />}
                 {label}
