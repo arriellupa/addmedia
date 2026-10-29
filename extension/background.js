@@ -90,6 +90,18 @@ chrome.runtime.onConnect.addListener((port) => {
     } else if (m.t === "layout") {
       if (m.mode === "split") await enterSplit(m.screen, info.windowId ?? lastNormalWindow);
       else await exitSplit();
+    } else if (m.t === "pageText") {
+      // the opening card: the page's text, read on this device and only because the reader tapped
+      const tab = await activeTab(await resolveWindow(info));
+      let text = "";
+      if (tab && !tab.incognito) {
+        try {
+          text = (await chrome.tabs.sendMessage(tab.id, { t: "text" }))?.text || "";
+        } catch {}
+      }
+      try {
+        port.postMessage({ t: "pageText", id: m.id, text });
+      } catch {}
     } else if (m.t === "badge") {
       const tab = await activeTab(await resolveWindow(info));
       if (tab) {

@@ -121,6 +121,7 @@ export interface Bundle {
   me: Me | null;
   settings?: PublicSettings;
 }
+export interface PageCard { summary: string[]; questions: string[]; lang: string; ts: number }
 export interface CenterAd {
   title: string;
   body: string;
@@ -135,6 +136,8 @@ export interface PublicSettings {
   retentionDays: number;
   linkMedia: boolean;
   centerAd: CenterAd | null;
+  /** the opening card (summary, questions, ask the page) is on */
+  aiCards?: boolean;
   /** agorot per semester, when the campus plan is priced */
   campusPrice?: number;
   campusDocsPerMonth?: number;
@@ -207,6 +210,9 @@ export interface Product {
 const placeQ = (pl: CampusPlace, extra: Record<string, string> = {}) => new URLSearchParams({ inst: pl.inst, faculty: pl.faculty, year: String(pl.year), ...(pl.course ? { course: pl.course } : {}), ...extra }).toString();
 
 export const api = {
+  getCard: (p: PageCtx) => call<{ card: PageCard | null; on: boolean }>(`/v1/card?${new URLSearchParams({ url: p.url, ...(p.canonical ? { canonical: p.canonical } : {}) })}`),
+  makeCard: (p: PageCtx, text: string) => call<{ card: PageCard }>("/v1/card", { method: "POST", body: { url: p.url, canonical: p.canonical, title: p.title, text } }),
+  askPage: (p: PageCtx, question: string, text: string) => call<{ answer: string }>("/v1/card/ask", { method: "POST", body: { url: p.url, canonical: p.canonical, title: p.title, question, text } }),
   panel: (p: PageCtx, scope: string, sort: string) => call<Bundle>(`/v1/panel?${pageQuery(p, { scope, sort })}`),
   morePosts: (roomId: string, before: number, kind = "text") => call<{ posts: Post[]; next: number | null }>(`/v1/room/${roomId}/posts?before=${before}&kind=${kind}`),
   post: (p: PageCtx, scope: string, body: string, parentId?: string | null) =>

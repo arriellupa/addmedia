@@ -22,6 +22,8 @@ export interface Settings {
   campusCharsPerDoc: number; // characters per document
   campusCharsTotal: number; // characters across all of a student's documents
   campusPrice: number; // agorot per semester
+  aiCards: boolean; // the opening card (summary, questions, ask the page)
+  aiCardsPerDay: number; // cards the whole service may make per day
 }
 
 export const DEFAULTS: Settings = {
@@ -34,6 +36,8 @@ export const DEFAULTS: Settings = {
   campusCharsPerDoc: 60_000,
   campusCharsTotal: 1_000_000,
   campusPrice: 2990,
+  aiCards: true,
+  aiCardsPerDay: 200,
 };
 
 let cache: { at: number; s: Settings } | null = null;
@@ -51,6 +55,8 @@ function clean(raw: Partial<Settings>): Settings {
     campusCharsPerDoc: n(raw.campusCharsPerDoc, DEFAULTS.campusCharsPerDoc, 100, 1_000_000),
     campusCharsTotal: n(raw.campusCharsTotal, DEFAULTS.campusCharsTotal, 100, 100_000_000),
     campusPrice: n(raw.campusPrice, DEFAULTS.campusPrice, 0, 1_000_000),
+    aiCards: raw.aiCards === undefined ? DEFAULTS.aiCards : !!raw.aiCards,
+    aiCardsPerDay: n(raw.aiCardsPerDay, DEFAULTS.aiCardsPerDay, 0, 100_000),
     centerAd: {
       on: !!ad.on,
       title: clampStr(ad.title, 120),
@@ -93,4 +99,5 @@ export const publicSettings = (s: Settings) => ({
   linkMedia: s.linkMedia,
   campus: { docsPerMonth: s.campusDocsPerMonth, charsPerDoc: s.campusCharsPerDoc, charsTotal: s.campusCharsTotal, price: s.campusPrice },
   centerAd: s.centerAd.on && s.centerAd.title ? s.centerAd : null,
+  aiCards: s.aiCards,
 });

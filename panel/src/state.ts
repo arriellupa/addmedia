@@ -22,6 +22,8 @@ const CHAT_CAP = 300;
 export const page = signal<PageCtx | null>(null);
 export const scope = signal<"page" | "site">("page");
 export const tab = signal<Tab>("chat");
+/** a question from the opening card, waiting to land in the talkback composer */
+export const seed = signal("");
 export const sort = signal<"new" | "top">("new");
 export const bundle = signal<Bundle | null>(null);
 export const loading = signal(true);

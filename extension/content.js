@@ -28,7 +28,17 @@
     };
   }
 
+  // the page's text, only when the reader asks for the opening card (never read on its own, never on password pages)
+  function readText() {
+    if (document.querySelector('input[type="password"]')) return "";
+    const clean = (el) => ((el && el.innerText) || "").replace(/\s+/g, " ").trim();
+    let t = clean(document.querySelector("article") || document.querySelector('[role="main"]') || document.querySelector("main"));
+    if (t.length < 400) t = clean(document.body);
+    return t.slice(0, 12000);
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg?.t === "meta") reply(read());
+    else if (msg?.t === "text") reply({ text: readText() });
   });
 })();

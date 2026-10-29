@@ -663,6 +663,30 @@ console.log("expiry (dev hook)");
   ok((await fetch(BASE + up.j.post.media)).status === 404, "expired media deleted from storage");
 }
 
+console.log("opening card");
+{
+  const CU = `https://www.ynet.co.il/news/article/card-${RUN}`;
+  const LONG = "הממשלה אישרה היום תוכנית להוזלת התחבורה הציבורית בשלוש ערים. ".repeat(12);
+  r = await api(`/v1/card?${q({ url: CU })}`);
+  ok(r.status === 200 && r.j.card === null && r.j.on === true, "no card yet for a new page");
+  r = await api("/v1/card", { method: "POST", body: { url: CU, title: "כותרת", text: LONG } });
+  ok(r.status === 401, "making a card needs an account");
+  r = await api("/v1/card", { method: "POST", token: B.token, body: { url: CU, title: "כותרת", text: "קצר" } });
+  ok(r.status === 400 && r.j.error.code === "short", "too little text is refused");
+  r = await api("/v1/card", { method: "POST", token: B.token, body: { url: `https://www.ynet.co.il/login?x=1`, title: "כניסה", text: LONG } });
+  ok(r.status === 400, "a login page gets no card", JSON.stringify(r.j));
+  r = await api("/v1/card", { method: "POST", token: B.token, body: { url: CU, title: "כותרת", text: LONG } });
+  ok(r.status === 200 && r.j.card.summary.length === 3 && r.j.card.questions.length === 3, "a card is made from the text", JSON.stringify(r.j));
+  r = await api(`/v1/card?${q({ url: CU })}`);
+  ok(r.j.card?.summary.length === 3, "the card is served to everyone without any text");
+  r = await api("/v1/card", { method: "POST", token: B.token, body: { url: CU, title: "כותרת", text: "אחר ".repeat(200) } });
+  ok(r.status === 200 && r.j.card.summary[0].includes("הממשלה"), "a second request returns the stored card");
+  r = await api("/v1/card/ask", { method: "POST", token: B.token, body: { url: CU, question: "על מה הכתבה?", text: LONG } });
+  ok(r.status === 200 && r.j.answer.length > 5, "ask the page answers", JSON.stringify(r.j));
+  r = await api("/v1/card/ask", { method: "POST", token: B.token, body: { url: CU, question: "x", text: LONG } });
+  ok(r.status === 400, "a one-letter question is refused");
+}
+
 console.log("erasure");
 r = await api("/v1/me", { method: "DELETE", token: A.token });
 ok(r.j.ok, "account deleted");

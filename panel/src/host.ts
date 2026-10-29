@@ -25,10 +25,14 @@ export interface Host {
   setLayout?(m: LayoutMode): void;
   expand?(on: boolean): void;
   badge?(n: number): void;
+  /** the page's text, read on the device (the extension only): for the opening card */
+  pageText?(): Promise<string>;
 }
 
 function extensionHost(): Host {
   let port: any = null;
+  let seq = 0;
+  const waiting = new Map<number, (t: string) => void>();
   const h: Host = {
     kind: "extension",
     layout: new URLSearchParams(location.search).get("mode") === "split" ? "split" : "side",
@@ -38,6 +42,7 @@ function extensionHost(): Host {
         port = chrome.runtime.connect({ name: "panel:" + h.layout });
         port.onMessage.addListener((m: any) => {
           if (m.t === "page") onPage(m.page);
+          else if (m.t === "pageText") waiting.get(m.id)?.(String(m.text || ""));
         });
         port.onDisconnect.addListener(() => setTimeout(connect, 500));
         port.postMessage({ t: "hello", windowId: win?.id ?? null });
@@ -62,6 +67,18 @@ function extensionHost(): Host {
     },
     badge(n) {
       port?.postMessage({ t: "badge", n });
+    },
+    pageText() {
+      return new Promise<string>((res) => {
+        const id = ++seq;
+        const done = (t: string) => {
+          waiting.delete(id);
+          res(t);
+        };
+        waiting.set(id, done);
+        port?.postMessage({ t: "pageText", id });
+        setTimeout(() => done(""), 4000);
+      });
     },
   };
   return h;

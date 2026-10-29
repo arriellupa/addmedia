@@ -3,6 +3,7 @@ import { handleAdmin, modLog } from "./admin";
 import { User, changePassword, dropDevice, forgotPassword, getUser, listDevices, loginAuth, logout, publicUser, registerAuth, resetPassword, startAuth, tokenFrom, verifyAuth, deviceOf, ipHashOf } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
 import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, createDocFile, docReadCheck, pruneReads, shownToOf, createEvent, deleteDoc, deleteEvent, directory, docFile, putDocText, existingRef, follow, myMaterials, recordRef, refOfMaterial, refRoomsMax, roomsOfMaterial, setRefsStatus, getCourseMeta, getStudent, grantPlan, hasStudent, holdsOf, lecturerArchive, listDocs, listEvents, listFollows, placeOf, placeTitle, placeUrl, putCourseMeta, putStudent, planOf, quotaOf, readDoc, searchDocs, slug, takedownNotice, takedownStart, updateDoc } from "./campus";
+import { askPage, getCard, makeCard } from "./card";
 import { debugPage, debugVia } from "./debug";
 import { getSettings, publicSettings } from "./settings";
 import { checkImage, checkPost, checkText } from "./moderation";
@@ -706,6 +707,17 @@ export default {
         return await dropDevice(env, u, dvm[1]);
       }
       if (p === "/v1/auth/logout" && req.method === "POST") return await logout(env, tokenFrom(req, url));
+      if (p === "/v1/card" && req.method === "GET") return await getCard(env, url);
+      if (p === "/v1/card" && req.method === "POST") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return await makeCard(req, env, u);
+      }
+      if (p === "/v1/card/ask" && req.method === "POST") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return await askPage(req, env, u);
+      }
       if (p === "/v1/me") return await me(req, env, url);
       if (p === "/v1/me/blocks" && req.method === "POST") return await block(req, env, url);
       if (p === "/v1/contact" && req.method === "POST") return await contact(req, env);

@@ -12,6 +12,7 @@ export interface Env {
   ADMIN_TOKEN?: string;
   RESEND_API_KEY?: string;
   OPENAI_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
 }
 
 export const now = () => Date.now();

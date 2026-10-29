@@ -1,9 +1,9 @@
 import { Fragment } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { Post } from "../api";
 import { ago, count, left } from "../fmt";
 import { Heart, More, Pin, Reply, X } from "../icons";
-import { bundle, canPost, loadMorePosts, me, needAuth, postsNext, replyTo, retentionDays, scope, scopeNames, sheet, sort, setSort, submitPost, toggleLike, visiblePosts } from "../state";
+import { bundle, canPost, loadMorePosts, me, needAuth, postsNext, replyTo, retentionDays, scope, scopeNames, seed, sheet, sort, setSort, submitPost, toggleLike, visiblePosts } from "../state";
 import { RefCard } from "./Attach";
 import { Avatar, Sponsored } from "./Bits";
 
@@ -112,6 +112,12 @@ function CardBody({ p, reply }: { p: Post; reply?: boolean }) {
 function PostComposer() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (seed.value) {
+      setText(seed.value);
+      seed.value = "";
+    }
+  }, [seed.value]);
   if (!canPost.value) return <div class="composer-off">התגובות כבויות בדף הזה לבקשת בעל האתר.</div>;
   const r = replyTo.value;
   const submit = () =>

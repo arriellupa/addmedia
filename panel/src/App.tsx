@@ -5,6 +5,7 @@ import { GoBar } from "./ui/GoBar";
 import { Cap, Copy, Lock, Refresh } from "./icons";
 import { bundle, load, loadError, loading, page, presence, setPage, tab } from "./state";
 import { BrandMark, CenterAd, Skeleton, Sponsored, Toast } from "./ui/Bits";
+import { OpeningCard } from "./ui/Card";
 import { ChatView } from "./ui/Chat";
 import { CommentsView } from "./ui/Comments";
 import { Header, Tabs } from "./ui/Header";
@@ -37,6 +38,7 @@ export function App() {
           ) : b ? (
             <>
               <Intro />
+              <OpeningCard />
               {!(b.settings?.centerAd && b.settings.centerAd.modes.includes("center")) && b.ads.top && <Sponsored ad={b.ads.top} compact={host.layout === "bottom"} />}
               <Tabs />
               {b.settings?.centerAd && b.settings.centerAd.modes.includes("center") && <CenterAd ad={b.settings.centerAd} />}
