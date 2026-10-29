@@ -222,7 +222,10 @@
   /* ---------- account: sign-in, sign-up, devices ---------- */
   .st-pw { display: flex; align-items: center; gap: 8px; }
   .st-pw .input { flex: 1; }
-  .st-pw-eye { font-size: 12px; flex: none; }
+  .st-pw { position: relative; }
+  .st-pw .input { padding-inline-start: 44px; }
+  .st-pw-eye { position: absolute; inset-inline-start: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; color: var(--c-text-3); flex: none; }
+  .st-pw-eye:hover, .st-pw-eye[aria-pressed="true"] { color: var(--c-text-1); }
   .st-auth-links { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
   .st-personal { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--st-warm-tint); color: #8a4210; font-size: 12px; line-height: 1.5; }
   .st-personal > .ic { flex: none; color: var(--st-warm); margin-top: 1px; }

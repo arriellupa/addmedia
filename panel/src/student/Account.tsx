@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { API_BASE, ApiError, Device, Me, api } from "../api";
 import { ago, date } from "../fmt";
 import { host } from "../host";
-import { Check, Lock, LogOut, Mail, Shield, Trash, UserI, X } from "../icons";
+import { Check, Eye, EyeOff, Lock, LogOut, Mail, Shield, Trash, UserI, X } from "../icons";
 import { me, say, sheet, signOut, signedIn } from "../state";
 import { Avatar, SheetFrame } from "../ui/Bits";
 import { RULES } from "../ui/Sheets";
@@ -28,8 +28,8 @@ function PwField({ label = "סיסמה", value, set, auto, show, toggle }: { lab
       <span>{label}</span>
       <div class="st-pw">
         <input class="input" type={(show ? "text" : "password") as any} dir="ltr" autoComplete={auto} minLength={MIN_PW} required value={value} onInput={(e) => set(e.currentTarget.value)} placeholder={"•".repeat(MIN_PW)} />
-        <button type="button" class="link st-pw-eye" onClick={toggle} aria-pressed={show}>
-          {show ? "הסתרה" : "הצגה"}
+        <button type="button" class="icon-btn st-pw-eye" onClick={toggle} aria-pressed={show} aria-label={show ? "הסתרת הסיסמה" : "הצגת הסיסמה"} title={show ? "הסתרת הסיסמה" : "הצגת הסיסמה"}>
+          {show ? <EyeOff size={20} /> : <Eye size={20} />}
         </button>
       </div>
     </label>
