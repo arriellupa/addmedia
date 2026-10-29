@@ -366,14 +366,6 @@ export function Editor() {
         <span class={`cp-ed-count num ${n > MAX ? "over" : n < MIN ? "under" : ""}`} aria-live="polite">
           {n.toLocaleString("he-IL")} / {MAX.toLocaleString("he-IL")}
         </span>
-        {!ok && !busy && missing.length > 0 && (
-          <span class="cp-ed-missing" role="status">
-            חסר: {missing.join(" · ")}
-          </span>
-        )}
-        <button class={`btn btn-primary ${ok ? "cp-ed-ready" : ""}`} disabled={!ok || busy} onClick={submit} title={ok ? undefined : "חסר: " + missing.join(", ")}>
-          {busy ? "שומר…" : existing ? "שמירה" : "פרסום"}
-        </button>
       </header>
       <div class="cp-ed-body">
         <div class="cp-ed-main">
@@ -471,6 +463,16 @@ export function Editor() {
               </span>
             </label>
           )}
+          <div class="cp-publish">
+            <button class={`btn btn-primary btn-lg btn-block ${ok ? "cp-ed-ready" : ""}`} disabled={!ok || busy} onClick={submit}>
+              {busy ? "שומר…" : existing ? "שמירת השינויים" : "פרסום הסיכום"}
+            </button>
+            {!ok && !busy && missing.length > 0 && (
+              <div class="cp-ed-missing" role="status">
+                כדי לפרסם חסר: {missing.join(" · ")}
+              </div>
+            )}
+          </div>
           <div class="cp-trust sm">
             <Shield size={16} />
             <span>

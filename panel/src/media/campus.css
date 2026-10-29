@@ -540,6 +540,7 @@
 }
 
 /* the editor's publish button: a visible reason while it is off, a glow when it is ready */
-.cp-ed-missing { font-size: 12px; line-height: 16px; color: var(--c-warning); max-width: 260px; text-align: end; }
+.cp-publish { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.cp-ed-missing { font-size: 13px; line-height: 18px; color: var(--c-warning); }
 .btn.cp-ed-ready { box-shadow: 0 0 0 3px var(--c-accent-tint), 0 6px 18px -6px var(--c-accent); }
 .btn:disabled { opacity: 0.45; }
