@@ -41,9 +41,9 @@ export function App() {
               <div class="stack">
                 <Intro />
                 <OpeningCard />
-                {b.settings?.centerAd && b.settings.centerAd.modes.includes("center") && <CenterAd ad={b.settings.centerAd} />}
-                {!(b.settings?.centerAd && b.settings.centerAd.modes.includes("center")) && b.ads.top && <Sponsored ad={b.ads.top} compact={host.layout === "bottom"} />}
               </div>
+              {b.settings?.centerAd && b.settings.centerAd.modes.includes("center") && <CenterAd ad={b.settings.centerAd} />}
+              {!(b.settings?.centerAd && b.settings.centerAd.modes.includes("center")) && b.ads.top && <Sponsored ad={b.ads.top} compact={host.layout === "bottom"} />}
               <main class="views" data-tab={tab.value}>
                 {tab.value === "chat" && <ChatView />}
                 {tab.value === "comments" && <CommentsView />}

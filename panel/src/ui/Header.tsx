@@ -80,21 +80,11 @@ export function Header() {
   const openMine = () => (sheet.value = u ? { type: "mymedia" } : { type: "signin", then: () => (sheet.value = { type: "mymedia" }) });
   return (
     <header class="head">
-      {b && !b.disabled && <Clip />}
       <div class="head-in">
         <div class="head-row">
           <div class="page-id">
-            <span class="brand-sq" aria-hidden="true">
-              A
-            </span>
-            <div class="url-pill" title={title}>
-              <span class="url-fav" aria-hidden="true">
-                {p?.favicon && iconOk ? <img class="fav" src={p.favicon} alt="" width={16} height={16} onError={() => setIconOk(false)} /> : <Globe size={14} />}
-              </span>
-              <bdi class="url-text" dir="ltr">
-                {b?.page.display || title}
-              </bdi>
-            </div>
+            <span class="wordmark">AddMedia</span>
+            {b && !b.disabled && <Clip />}
           </div>
           <div class="head-actions">
             {host.kind === "web" && p && (
@@ -133,6 +123,11 @@ export function Header() {
             </button>
           </div>
         </div>
+        {b && (
+          <bdi class="page-domain page-domain-row" dir="ltr" title={title}>
+            {b.page.display}
+          </bdi>
+        )}
         {host.kind === "web" && <GoBar compact />}
         {b && !b.disabled && (
           <div class="scope" role="tablist" aria-label="היקף השיחה">

@@ -107,13 +107,14 @@ export function OpeningCard() {
         <span class="oc-pill">
           <Sparkles size={12} /> נוצר אוטומטית
         </span>
-        <strong class="oc-title">בקצרה על הדף</strong>
+        <span class="oc-spacer" />
         <span class={isOpen ? "oc-chev up" : "oc-chev"} aria-hidden="true">
           <Chevron size={18} />
         </span>
       </button>
       {isOpen && (
         <div class="oc-body">
+          <h3 class="oc-h">מה קורה בכתבה הזאת?</h3>
           <ul class="oc-points" dir="auto">
             {card.summary.map((s) => (
               <li>{s}</li>
