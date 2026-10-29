@@ -10,6 +10,14 @@ import { Dialog } from "../Dialog";
 import { place, placeTitle, takedownOpen } from "../state";
 
 type Role = "lecturer" | "institution" | "author" | "other";
+const WHY: [string, string][] = [
+  ["copyright", "זכויות יוצרים: הטקסט מועתק מחומר שלי"],
+  ["lecturer", "חומר של מרצה: מצגת, הקלטה או מבחן"],
+  ["privacy", "פגיעה בפרטיות: פרטים אישיים שלי או של אחר"],
+  ["defamation", "לשון הרע: פגיעה בשמי או בשם אחר"],
+  ["minor", "תוכן הנוגע לקטין"],
+  ["other", "סיבה אחרת"],
+];
 const ROLES: [Role, string][] = [
   ["lecturer", "מרצה"],
   ["institution", "מוסד"],
@@ -35,7 +43,9 @@ export function TakedownDialog({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<Role>("lecturer");
   const [whole, setWhole] = useState(true);
   const [secs, setSecs] = useState<Set<number>>(new Set());
-  const [reason, setReason] = useState("");
+  const [why, setWhy] = useState("");
+  const [details, setDetails] = useState("");
+  const reason = why ? `${WHY.find(([k]) => k === why)?.[1] || why}: ${details.trim()}` : details.trim();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<{ id: string; held?: number } | null>(null);
@@ -44,7 +54,7 @@ export function TakedownDialog({ onClose }: { onClose: () => void }) {
   const emailOk = signedIn || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const phoneN = normPhone(phone);
   const sectionsOk = !item?.sections?.length || whole || secs.size > 0;
-  const ok = name.trim().length >= 2 && emailOk && (signedIn || (codeSent && code.trim().length >= 4)) && !!phoneN && reason.trim().length >= 10 && sectionsOk && !!pl;
+  const ok = name.trim().length >= 2 && emailOk && (signedIn || (codeSent && code.trim().length >= 4)) && !!phoneN && !!why && details.trim().length >= 10 && sectionsOk && !!pl;
 
   const sendCode = async () => {
     setBusy(true);
@@ -98,7 +108,7 @@ export function TakedownDialog({ onClose }: { onClose: () => void }) {
             מספר אסמכתה: <b class="num ltr">{done.id}</b>
             {typeof done.held === "number" && done.held > 0 && <> · {done.held === 1 ? "פריט אחד" : `${done.held} פריטים`} בהשהיה</>}
           </div>
-          <p class="lead">נבדוק את הבקשה ונשיב לכתובת {signedIn ? "ההתחברות שלכם" : <bdi dir="ltr">{email.trim()}</bdi>} תוך 24–48 שעות. הפריט נשאר מוסתר מכולם עד להחלטה; המחבר/ת רואה אותו עם הסימון «בבדיקה לאחר בקשת הסרה».</p>
+          <p class="lead">נחזור אליך תוך 48 שעות — לכתובת {signedIn ? "ההתחברות שלכם" : <bdi dir="ltr">{email.trim()}</bdi>} ולטלפון <bdi dir="ltr">{phoneN}</bdi>. הפריט נשאר מוסתר מכולם עד להחלטה; המחבר/ת רואה אותו עם הסימון «בבדיקה לאחר בקשת הסרה».</p>
           <button class="btn btn-primary btn-block" onClick={onClose}>
             סגירה
           </button>
@@ -165,11 +175,11 @@ export function TakedownDialog({ onClose }: { onClose: () => void }) {
             </select>
           </label>
           <label class="field">
-            <span>אימייל</span>
+            <span>אימייל לחזרה</span>
             {signedIn ? <input class="input ltr" value={u!.email || "כתובת ההתחברות שלכם"} disabled /> : <input class="input ltr" type="email" value={email} disabled={codeSent} onInput={(e) => setEmail(e.currentTarget.value)} placeholder="name@example.ac.il" />}
           </label>
           <label class="field">
-            <span>נייד</span>
+            <span>טלפון נייד לחזרה</span>
             <input class="input ltr" type="tel" inputMode="tel" value={phone} onInput={(e) => setPhone(e.currentTarget.value)} placeholder="052-1234567" />
             {phone && !phoneN && <small class="cp-hint bad">מספר נייד ישראלי: 05X-XXXXXXX.</small>}
           </label>
@@ -195,9 +205,24 @@ export function TakedownDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <label class="field">
-          <span>מה לבדוק</span>
-          <textarea class="input" dir="auto" rows={4} maxLength={3000} value={reason} onInput={(e) => setReason(e.currentTarget.value)} placeholder="מה הפריט, מה הקשר שלכם אליו, ומה מבקשים להסיר" />
+          <span>מדוע מבקשים להסיר</span>
+          <select class="input" value={why} onChange={(e) => setWhy(e.currentTarget.value)}>
+            <option value="">בחרו סיבה…</option>
+            {WHY.map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
         </label>
+        <label class="field">
+          <span>פרטים</span>
+          <textarea class="input" dir="auto" rows={4} maxLength={3000} value={details} onInput={(e) => setDetails(e.currentTarget.value)} placeholder="מה הקשר שלכם לפריט, איזה קטע בדיוק, ומה מבקשים — להסיר הכול או חלק" />
+          {details && details.trim().length < 10 && <small class="cp-hint bad">פרטו בבקשה, לפחות 10 תווים.</small>}
+        </label>
+        <div class="cp-td-back">
+          <b>נחזור אליך תוך 48 שעות</b> — לאימייל ולטלפון שמסרת. הפריט מוסתר מיד עם קבלת הבקשה.
+        </div>
         {err && <div class="form-err">{err}</div>}
         <button class="btn btn-primary btn-block btn-lg" disabled={!ok || busy} onClick={submit}>
           {busy ? "שולח…" : "שליחת הבקשה"}

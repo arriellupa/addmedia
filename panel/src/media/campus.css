@@ -544,3 +544,5 @@
 .cp-ed-missing { font-size: 13px; line-height: 18px; color: var(--c-warning); }
 .btn.cp-ed-ready { box-shadow: 0 0 0 3px var(--c-accent-tint), 0 6px 18px -6px var(--c-accent); }
 .btn:disabled { opacity: 0.45; }
+
+.cp-td-back { padding: 10px 12px; border-radius: var(--r-md); background: var(--c-accent-tint); color: var(--c-text-1); font-size: var(--fs-label); line-height: var(--lh-label); margin: 4px 0 10px; }
