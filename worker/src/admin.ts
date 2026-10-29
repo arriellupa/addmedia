@@ -1,10 +1,11 @@
 // Moderation & operations API for the operator. Protected by ADMIN_TOKEN (Bearer).
-import { deleteDoc } from "./campus";
+import { applyTakedown, deleteDoc, deleteEvent, grantPlan, listTakedowns, restoreTakedown } from "./campus";
 import { invalidateTerms } from "./moderation";
 import { getSettings, putSettings } from "./settings";
 import { Env, clampStr, fail, json, now, randomId, readJson } from "./util";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
+const USER_COLS = "SELECT u.id, u.display_name, u.created_at, u.banned, u.credits_media, u.strikes, u.email, u.campus_until, s.full_name, s.inst, s.faculty, s.faculty2, s.year, s.track FROM users u LEFT JOIN student_profiles s ON s.user_id=u.id";
 
 async function log(env: Env, e: { action: string; target_type: string; target_id: string; room_id?: string | null; report_id?: string | null; reason?: string | null; actor?: string }) {
   await env.DB.prepare(
@@ -30,8 +31,32 @@ export async function handleAdmin(req: Request, env: Env, url: URL): Promise<Res
     return json({ settings: s });
   }
   if (res === "docs" && m === "GET") {
-    const rows = (await env.DB.prepare("SELECT id, user_id, user_name, inst, faculty, year, course, kind, title, size, created_at, status FROM campus_docs ORDER BY created_at DESC LIMIT 100").all<any>()).results || [];
+    const rows = (await env.DB.prepare(
+      `SELECT d.id, d.user_id, d.user_name, d.inst, d.faculty, d.year, d.course, d.kind, d.title, d.chars, d.created_at, d.updated_at, d.status, d.link_url,
+              u.strikes AS strikes, u.email AS email, u.campus_until AS campus_until, s.full_name AS full_name, s.inst AS s_inst, s.faculty AS s_faculty, s.year AS s_year, s.track AS track, d.lecturer_name, d.lesson_date, d.lesson_no
+       FROM campus_docs d LEFT JOIN users u ON u.id=d.user_id LEFT JOIN student_profiles s ON s.user_id=d.user_id ORDER BY d.created_at DESC LIMIT 100`,
+    ).all<any>()).results || [];
     return json({ docs: rows });
+  }
+  if (res === "campus") {
+    const [, sub, cid, verb] = parts;
+    if (sub === "takedowns" && m === "GET") return json({ takedowns: await listTakedowns(env) });
+    if (sub === "grant" && m === "POST") {
+      // the campus plan by hand, until a payment provider is wired
+      const b = await readJson(req);
+      const uid = clampStr(b.userId, 40);
+      const days = Math.max(1, Math.min(3650, Number(b.days) || 182));
+      if (!uid) return fail(400, "bad_user", "חסר משתמש.");
+      const until = await grantPlan(env, uid, days);
+      await log(env, { action: "grant_campus", target_type: "user", target_id: uid, reason: `${days} days` });
+      return json({ ok: true, campusUntil: until });
+    }
+    if (sub === "takedown" && cid && verb === "apply" && m === "POST") return await applyTakedown(env, cid, await readJson(req));
+    if (sub === "takedown" && cid && verb === "restore" && m === "POST") return await restoreTakedown(env, cid);
+    if (sub === "events" && cid && m === "DELETE") {
+      await log(env, { action: "remove_event", target_type: "event", target_id: cid });
+      return await deleteEvent(env, cid, null, true);
+    }
   }
   if (res === "docs" && m === "DELETE" && id) {
     await log(env, { action: "remove_doc", target_type: "doc", target_id: id });
@@ -108,8 +133,8 @@ export async function handleAdmin(req: Request, env: Env, url: URL): Promise<Res
   if (res === "users" && m === "GET") {
     const q = clampStr(url.searchParams.get("q"), 60);
     const rows = q
-      ? (await env.DB.prepare("SELECT id, display_name, created_at, banned, credits_media FROM users WHERE id=? OR display_name LIKE ? ORDER BY created_at DESC LIMIT 50").bind(q, `%${q}%`).all()).results
-      : (await env.DB.prepare("SELECT id, display_name, created_at, banned, credits_media FROM users ORDER BY created_at DESC LIMIT 50").all()).results;
+      ? (await env.DB.prepare(`${USER_COLS} WHERE u.id=? OR u.display_name LIKE ? OR s.full_name LIKE ? ORDER BY u.created_at DESC LIMIT 50`).bind(q, `%${q}%`, `%${q}%`).all()).results
+      : (await env.DB.prepare(`${USER_COLS} ORDER BY u.created_at DESC LIMIT 50`).all()).results;
     return json({ users: rows });
   }
 

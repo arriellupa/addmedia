@@ -10,7 +10,9 @@ export type Sheet =
   | { type: "mymedia"; section?: "create" | "items" | "store" | "safety"; pinFor?: Post }
   | { type: "report"; itemType: "post" | "chat"; item: Post | ChatMsg }
   | { type: "menu"; itemType: "post" | "chat"; item: Post | ChatMsg }
-  | { type: "viewer"; post: Post };
+  | { type: "viewer"; post: Post }
+  | { type: "student"; then?: () => void }
+  | { type: "attach" };
 
 const CHAT_CAP = 300;
 
@@ -34,6 +36,8 @@ export const blocked = signal<Set<string>>(new Set());
 export const sheet = signal<Sheet>(null);
 export const toast = signal<{ text: string; kind?: "ok" | "err"; action?: { label: string; run: () => void } } | null>(null);
 export const replyTo = signal<Post | null>(null);
+/** text to drop into the live chat's composer (the campus's page citation); the composer empties it */
+export const composerInsert = signal<string | null>(null);
 export const sideHint = computed(() => bundle.value?.other ?? null);
 const isCampus = () => !!page.value?.url.startsWith("https://campus.addmedia.noaplate.com/");
 /** the names of the two scopes, as the composers say them */
@@ -78,11 +82,15 @@ const live = new Live({
         chat.value = chat.value.map((m) => (m.cid === ev.cid ? { ...m, pending: false, failed: ev.message } : m));
         if (ev.code === "slow" && ev.retryIn) slowUntil.value = Date.now() + ev.retryIn;
         if (ev.code === "auth") sheet.value = { type: "signin" };
+        if (ev.code === "student") {
+          const m = chat.value.find((x) => x.cid === ev.cid);
+          sheet.value = { type: "student", then: m ? () => retryChat(m) : undefined };
+        }
         host.haptic("error");
         break;
       }
       case "post":
-        if (ev.post.kind === "image") media.value = upsert(media.value, ev.post);
+        if (ev.post.kind === "image" || ev.post.ref?.type === "media") media.value = upsert(media.value, ev.post);
         else posts.value = upsert(posts.value, ev.post);
         break;
       case "post_update":
@@ -246,10 +254,15 @@ export async function signOut() {
   say("התנתקת.");
 }
 
+/** a second gate after sign-in (the campus asks the student to identify); returns false when it took over */
+let writeGate: ((fn: () => void) => boolean) | null = null;
+export const setWriteGate = (g: typeof writeGate) => (writeGate = g);
+
 /** run fn only if signed in with accepted rules; otherwise open the sign-in sheet and resume after */
 export function needAuth(fn: () => void) {
-  if (me.value?.termsAccepted) return fn();
-  sheet.value = { type: "signin", then: fn };
+  if (!me.value?.termsAccepted) return void (sheet.value = { type: "signin", then: fn });
+  if (writeGate && isCampus() && !writeGate(fn)) return;
+  fn();
 }
 
 // ---------- actions ----------
@@ -284,6 +297,10 @@ export async function submitPost(body: string): Promise<boolean> {
     host.haptic("light");
     return true;
   } catch (e: any) {
+    if (e?.code === "student") {
+      sheet.value = { type: "student", then: () => submitPost(body) };
+      return false;
+    }
     say(e.message, "err");
     host.haptic("error");
     return false;

@@ -2,7 +2,7 @@
 import { handleAdmin, modLog } from "./admin";
 import { User, getUser, logout, publicUser, startAuth, tokenFrom, verifyAuth } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
-import { CAMPUS_HOST, campusTree, deleteDoc, docFile, follow, listDocs, listFollows, placeOf, placeTitle, placeUrl, uploadDoc } from "./campus";
+import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, createEvent, deleteDoc, deleteEvent, directory, existingRef, follow, myMaterials, recordRef, refOfMaterial, refRoomsMax, roomsOfMaterial, setRefsStatus, getCourseMeta, getStudent, grantPlan, hasStudent, holdsOf, lecturerArchive, listDocs, listEvents, listFollows, placeOf, placeTitle, placeUrl, putCourseMeta, putStudent, planOf, quotaOf, readDoc, searchDocs, slug, takedownNotice, takedownStart, updateDoc } from "./campus";
 import { debugPage, debugVia } from "./debug";
 import { getSettings, publicSettings } from "./settings";
 import { checkImage, checkPost, checkText } from "./moderation";
@@ -13,7 +13,7 @@ export { PageRoom } from "./room";
 export { Directory } from "./directory";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-28.2";
+const VERSION = "2026-10-29.1";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 
@@ -23,6 +23,7 @@ const PRODUCTS = [
   { id: "pin30", kind: "pin", days: 30, price: 1490, title: "הצמדה ל-30 יום" },
   { id: "pin90", kind: "pin", days: 90, price: 2990, title: "הצמדה ל-90 יום", best: true },
   { id: "pin365", kind: "pin", days: 365, price: 8990, title: "הצמדה לשנה" },
+  { id: "campus", kind: "campus", days: 182, price: 2990, title: "קמפוס · סמסטר", note: "הספרייה, החיפוש והסיכומים של הקמפוס לסמסטר" },
 ] as const;
 
 // ---------- domain rules (cached per isolate) ----------
@@ -125,6 +126,33 @@ async function requireUser(env: Env, req: Request, url: URL): Promise<User | Res
 
 const isNewUser = (u: User) => now() - u.created_at < DAY;
 
+/** a signed-in user who accepted the community rules */
+async function requireMember(env: Env, req: Request, url: URL): Promise<User | Response> {
+  const u = await requireUser(env, req, url);
+  if (u instanceof Response) return u;
+  if (!u.terms_accepted_at) return fail(403, "terms", "יש לאשר את כללי הקהילה לפני הפרסום הראשון.");
+  return u;
+}
+
+/** a member who identified as a student: every write in the campus needs this */
+async function requireStudent(env: Env, req: Request, url: URL): Promise<User | Response> {
+  const u = await requireMember(env, req, url);
+  if (u instanceof Response) return u;
+  if (!(await hasStudent(env, u.id))) return fail(403, "student", STUDENT_MSG);
+  return u;
+}
+
+/** reading the campus (directory, documents, search) needs an active plan or the 14-day trial */
+async function requirePlan(env: Env, req: Request, url: URL): Promise<User | null | Response> {
+  const u = await getUser(env, tokenFrom(req, url));
+  if (u?.banned) return fail(403, "banned", "החשבון הושעה בשל הפרת כללי הקהילה.");
+  const plan = await planOf(env, u);
+  if (!plan.active) return fail(402, "plan", PLAN_MSG, { plan, signedIn: !!u });
+  return u;
+}
+
+const campusPlace = (url: URL) => placeOf({ inst: url.searchParams.get("inst"), faculty: url.searchParams.get("faculty"), year: url.searchParams.get("year"), course: url.searchParams.get("course") });
+
 async function recentPosts(env: Env, uid: string, ms: number) {
   const r = await env.DB.prepare("SELECT COUNT(*) n FROM content_index WHERE user_id=? AND created_at>?").bind(uid, now() - ms).first<{ n: number }>();
   return r?.n ?? 0;
@@ -184,6 +212,8 @@ async function websocket(req: Request, env: Env, url: URL): Promise<Response> {
     headers.set("X-Name", encodeURIComponent(u.display_name));
     headers.set("X-New", isNewUser(u) ? "1" : "0");
     headers.set("X-Can-Post", u.terms_accepted_at && commentsAllowed(r) ? "1" : "0");
+    // campus rooms: only identified students write
+    if (r.c.host === CAMPUS_HOST && !(await hasStudent(env, u.id))) headers.set("X-Need-Student", "1");
   }
   headers.set("X-Meta", encodeURIComponent(JSON.stringify(r.meta)));
   const fwd = new URL(req.url);
@@ -199,6 +229,7 @@ async function createPost(req: Request, env: Env, url: URL): Promise<Response> {
   const r = await resolve(env, b);
   if (r instanceof Response) return r;
   if (!commentsAllowed(r)) return fail(403, "disabled", "התגובות כבויות בדף הזה.");
+  if (r.c.host === CAMPUS_HOST && !(await hasStudent(env, u.id))) return fail(403, "student", STUDENT_MSG);
   const text = clampStr(b.body, 2000);
   if (text.length < 2) return fail(400, "empty", "התגובה קצרה מדי.");
   if ((await recentPosts(env, u.id, 60_000)) >= 3) return fail(429, "rate", "רגע, לאט יותר. אפשר לפרסם עד 3 תגובות בדקה.");
@@ -279,6 +310,46 @@ async function uploadMedia(req: Request, env: Env, url: URL): Promise<Response> 
   return json({ post, review, credits: free ? u.credits_media : u.credits_media - 1, free });
 }
 
+/** «הוסף מידע»: attach the person's own documents or images to this page's room as reference posts */
+async function attach(req: Request, env: Env, url: URL): Promise<Response> {
+  const u = await requireMember(env, req, url);
+  if (u instanceof Response) return u;
+  const b = await readJson(req);
+  const r = await resolve(env, b);
+  if (r instanceof Response) return r;
+  if (!commentsAllowed(r)) return fail(403, "disabled", "פרסום כבוי בדף הזה.");
+  const items = (Array.isArray(b.items) ? b.items : []).slice(0, 20);
+  if (!items.length) return fail(400, "empty", "לא נבחרו פריטים.");
+  const posts: unknown[] = [];
+  const skipped: { id: string; code: string }[] = [];
+  for (const raw of items) {
+    const type = String(raw?.type || "");
+    const id = clampStr(raw?.id, 40);
+    const m = await refOfMaterial(env, u, type, id);
+    if (m instanceof Response) {
+      skipped.push({ id, code: "not_found" });
+      continue;
+    }
+    const was = await existingRef(env, type, id, r.roomId);
+    if (was) {
+      skipped.push({ id, code: "already" });
+      continue;
+    }
+    if ((await roomsOfMaterial(env, type, id)) >= refRoomsMax()) {
+      skipped.push({ id, code: "ref_limit" });
+      continue;
+    }
+    const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "ref", body: m.ref.title || "", meta: r.meta, ref: m.ref, ttlDays: (await getSettings(env)).retentionDays });
+    await Promise.all([
+      recordRef(env, { type, itemId: id, srcRoom: m.srcRoom, roomId: r.roomId, postId: post.id, uid: u.id }),
+      env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at) VALUES (?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "ref", now(), post.expiresAt).run(),
+    ]);
+    posts.push(post);
+  }
+  if (!posts.length && skipped.every((x) => x.code === "ref_limit")) return fail(403, "ref_limit", `חומר אחד אפשר לצרף לכל היותר ל-${refRoomsMax()} דפים.`);
+  return json({ posts, skipped });
+}
+
 const REASONS = new Set(["spam", "harassment", "hate", "violence", "sexual", "intimate", "minor", "privacy", "copyright", "other"]);
 
 async function report(req: Request, env: Env, url: URL): Promise<Response> {
@@ -311,6 +382,11 @@ async function checkout(req: Request, env: Env, url: URL): Promise<Response> {
   const p = PRODUCTS.find((x) => x.id === b.product);
   if (!p) return fail(400, "bad_product", "מוצר לא קיים.");
   if (!isTrue(env.TEST_PURCHASES)) return fail(501, "payments_soon", "התשלום יחובר בקרוב. בינתיים אפשר להשתמש בגרסה החינמית.");
+  if (p.kind === "campus") {
+    const until = await grantPlan(env, u.id, p.days);
+    await env.DB.prepare("INSERT INTO purchases (id, user_id, product, amount_agorot, provider, created_at) VALUES (?,?,?,?,?,?)").bind("pu_" + randomId(10), u.id, p.id, (await getSettings(env)).campusPrice, "test", now()).run();
+    return json({ ok: true, test: true, campusUntil: until });
+  }
   if (p.kind === "media") {
     await env.DB.batch([
       env.DB.prepare("UPDATE users SET credits_media=credits_media+? WHERE id=?").bind(p.qty, u.id),
@@ -336,7 +412,7 @@ async function me(req: Request, env: Env, url: URL): Promise<Response> {
   if (req.method === "GET") {
     const items = (await env.DB.prepare("SELECT item_id, room_id, kind, created_at, expires_at FROM content_index WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(u.id).all()).results;
     const blocks = (await env.DB.prepare("SELECT blocked_id FROM blocks WHERE user_id=?").bind(u.id).all<any>()).results.map((x) => x.blocked_id);
-    return json({ user: publicUser(u), items, blocks });
+    return json({ user: publicUser(u), items, blocks, holds: await holdsOf(env, u.id) });
   }
   if (req.method === "POST") {
     const b = await readJson(req);
@@ -359,6 +435,10 @@ async function me(req: Request, env: Env, url: URL): Promise<Response> {
       env.DB.prepare("DELETE FROM content_index WHERE user_id=?").bind(u.id),
       env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(u.id),
       env.DB.prepare("DELETE FROM blocks WHERE user_id=? OR blocked_id=?").bind(u.id, u.id),
+      env.DB.prepare("DELETE FROM student_profiles WHERE user_id=?").bind(u.id),
+      env.DB.prepare("DELETE FROM material_refs WHERE user_id=?").bind(u.id),
+      env.DB.prepare("DELETE FROM campus_docs WHERE user_id=?").bind(u.id),
+      env.DB.prepare("DELETE FROM campus_events WHERE user_id=?").bind(u.id),
       env.DB.prepare("DELETE FROM users WHERE id=?").bind(u.id),
     ]);
     return json({ ok: true });
@@ -389,6 +469,8 @@ async function roomAction(req: Request, env: Env, url: URL, roomId: string, rest
     const r = await room(env, roomId).deleteOwn(rest[1], u.id);
     if (!r.ok) return fail(403, "not_owner", "אפשר למחוק רק פריט שלך.");
     await env.DB.prepare("DELETE FROM content_index WHERE item_id=? AND user_id=?").bind(rest[1], u.id).run();
+    await setRefsStatus(env, "media", rest[1], "removed");
+    await env.DB.prepare("DELETE FROM material_refs WHERE post_id=?").bind(rest[1]).run(); // a deleted ref post
     return json({ ok: true });
   }
   if (rest[0] === "posts" && rest[2] === "like" && req.method === "POST") {
@@ -443,27 +525,106 @@ export default {
         const d = env.DIRECTORY.get(env.DIRECTORY.idFromName("global"));
         return json(await d.list({ campus: campus === null ? undefined : campus === "1" }), 200, { "Cache-Control": "public, max-age=0, s-maxage=5" });
       }
-      if (p === "/v1/campus/tree") return json(campusTree(), 200, { "Cache-Control": "public, max-age=3600" });
+      if (p === "/v1/campus/tree") {
+        // the plain tree (picker) is free; with a place it carries the directory counts, which are part of the paid campus
+        const place = url.searchParams.get("inst") ? campusPlace(url) : null;
+        if (!place) return json(campusTree(), 200, { "Cache-Control": "public, max-age=3600" });
+        const v = await requirePlan(env, req, url);
+        if (v instanceof Response) return v;
+        return json({ ...campusTree(), place, courses: await directory(env, place.inst, place.faculty, place.year) });
+      }
+      if (p === "/v1/campus/lecturer" && req.method === "GET") {
+        const inst = slug(url.searchParams.get("inst") || "");
+        const faculty = slug(url.searchParams.get("faculty") || "");
+        const lecturer = slug(url.searchParams.get("lecturer") || "");
+        if (!inst || !faculty || !lecturer) return fail(400, "bad_place", "יש לציין מוסד, פקולטה ומרצה.");
+        const v = await requirePlan(env, req, url);
+        if (v instanceof Response) return v;
+        return json({ lecturer, docs: await lecturerArchive(env, inst, faculty, lecturer) });
+      }
       if (p === "/v1/campus/docs" && req.method === "GET") {
-        const place = placeOf({ inst: url.searchParams.get("inst"), faculty: url.searchParams.get("faculty"), year: url.searchParams.get("year"), course: url.searchParams.get("course") });
+        const place = campusPlace(url);
         if (!place) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
-        return json({ docs: await listDocs(env, place, url.searchParams.get("kind")), place, title: placeTitle(place), url: placeUrl(place) });
+        const viewer = await requirePlan(env, req, url);
+        if (viewer instanceof Response) return viewer;
+        const [docs, cov] = await Promise.all([listDocs(env, place, url.searchParams.get("kind"), viewer?.id), coverage(env, place)]);
+        return json({ docs, place, title: placeTitle(place), url: placeUrl(place), coverage: cov });
       }
       if (p === "/v1/campus/docs" && req.method === "POST") {
-        const u = await requireUser(env, req, url);
+        const u = await requireStudent(env, req, url);
         if (u instanceof Response) return u;
-        if (!u.terms_accepted_at) return fail(403, "terms", "יש לאשר את כללי הקהילה לפני הפרסום הראשון.");
-        return await uploadDoc(req, env, url, u);
+        return await createDoc(req, env, url, u);
       }
-      const dm = p.match(/^\/v1\/campus\/docs\/([A-Za-z0-9_-]{4,40})(\/file)?$/);
-      if (dm && dm[2]) return await docFile(env, dm[1]);
+      const dm = p.match(/^\/v1\/campus\/docs\/([A-Za-z0-9_-]{4,40})$/);
+      if (dm && req.method === "GET") {
+        const viewer = await requirePlan(env, req, url);
+        if (viewer instanceof Response) return viewer;
+        return await readDoc(env, dm[1], viewer?.id);
+      }
+      if (dm && req.method === "PUT") {
+        const u = await requireStudent(env, req, url);
+        if (u instanceof Response) return u;
+        return await updateDoc(req, env, dm[1], u);
+      }
       if (dm && req.method === "DELETE") return await deleteDoc(env, dm[1], await getUser(env, tokenFrom(req, url)));
+      if (p === "/v1/campus/search" && req.method === "GET") {
+        const place = campusPlace(url);
+        if (!place) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
+        const v = await requirePlan(env, req, url);
+        if (v instanceof Response) return v;
+        return json(await searchDocs(env, place, url.searchParams.get("q") || ""));
+      }
+      if (p === "/v1/campus/course") {
+        const place = campusPlace(url);
+        if (!place) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
+        if (req.method === "GET") return json(await getCourseMeta(env, place));
+        if (req.method === "PUT" || req.method === "POST") {
+          const u = await requireStudent(env, req, url);
+          if (u instanceof Response) return u;
+          return await putCourseMeta(req, env, place, u);
+        }
+      }
+      if (p === "/v1/campus/events") {
+        const place = campusPlace(url);
+        if (!place) return fail(400, "bad_place", "יש לבחור מוסד, פקולטה ושנה.");
+        if (req.method === "GET") return json({ events: await listEvents(env, place) });
+        if (req.method === "POST") {
+          const u = await requireStudent(env, req, url);
+          if (u instanceof Response) return u;
+          return await createEvent(req, env, place, u);
+        }
+      }
+      const em = p.match(/^\/v1\/campus\/events\/([A-Za-z0-9_-]{4,40})$/);
+      if (em && req.method === "DELETE") {
+        const bearer = tokenFrom(req, url);
+        const admin = !!env.ADMIN_TOKEN && bearer === env.ADMIN_TOKEN;
+        return await deleteEvent(env, em[1], admin ? null : await getUser(env, bearer), admin);
+      }
+      if (p === "/v1/campus/takedown/start" && req.method === "POST") return await takedownStart(req, env);
+      if (p === "/v1/campus/takedown" && req.method === "POST") return await takedownNotice(req, env, await getUser(env, tokenFrom(req, url)));
       if (p === "/v1/me/follows" && req.method === "GET") {
         const u = await requireUser(env, req, url);
         if (u instanceof Response) return u;
         return json({ follows: await listFollows(env, u.id) });
       }
       if (p === "/v1/me/follows" && req.method === "POST") return await follow(req, env, url);
+      if (p === "/v1/me/student") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        if (req.method === "GET") return json({ student: await getStudent(env, u), plan: await planOf(env, u), quota: await quotaOf(env, u.id) });
+        if (req.method === "PUT" || req.method === "POST") return await putStudent(req, env, u);
+      }
+      if (p === "/v1/me/materials" && req.method === "GET") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return json(await myMaterials(env, u));
+      }
+      if (p === "/v1/room/attach" && req.method === "POST") return await attach(req, env, url);
+      if (p === "/v1/me/campus" && req.method === "GET") {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return json({ student: await getStudent(env, u), plan: await planOf(env, u), quota: await quotaOf(env, u.id), holds: await holdsOf(env, u.id) });
+      }
       if (p === "/v1/debug/via") return await debugVia(req, env, url);
       if (p === "/v1/panel" && req.method === "GET") return await panel(req, env, url, ctx);
       if (p === "/v1/ws") return await websocket(req, env, url);
@@ -476,7 +637,10 @@ export default {
       if (p === "/v1/me") return await me(req, env, url);
       if (p === "/v1/me/blocks" && req.method === "POST") return await block(req, env, url);
       if (p === "/v1/contact" && req.method === "POST") return await contact(req, env);
-      if (p === "/v1/store/products") return json({ products: PRODUCTS, testMode: isTrue(env.TEST_PURCHASES) });
+      if (p === "/v1/store/products") {
+        const price = (await getSettings(env)).campusPrice;
+        return json({ products: PRODUCTS.map((x) => (x.id === "campus" ? { ...x, price } : x)), testMode: isTrue(env.TEST_PURCHASES) });
+      }
       if (p === "/v1/store/checkout" && req.method === "POST") return await checkout(req, env, url);
       if (p.startsWith("/v1/admin")) return await handleAdmin(req, env, url);
       const ad = p.match(/^\/v1\/ads\/([A-Za-z0-9_-]{4,40})\/click$/);

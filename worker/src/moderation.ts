@@ -82,6 +82,15 @@ export function invalidateTerms() {
   compiled = null;
 }
 
+/** Only the blocked-terms pass: cheap enough for a long document body. */
+export async function checkTerms(env: Env, text: string): Promise<Verdict> {
+  const n = normalize(text);
+  for (const re of await termRegexes(env)) {
+    if (re.test(n)) return { ok: false, code: "blocked_language", message: "הטקסט כולל ביטוי פוגעני ולא נשמר." };
+  }
+  return { ok: true };
+}
+
 /** Fast synchronous-ish layer, used for every chat message and post. */
 export async function checkText(env: Env, text: string, opts: { isNew: boolean }): Promise<Verdict> {
   const n = normalize(text);

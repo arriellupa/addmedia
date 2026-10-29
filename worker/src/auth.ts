@@ -9,6 +9,9 @@ export interface User {
   credits_pin: number;
   banned: number;
   role: string;
+  strikes?: number;
+  email?: string | null;
+  campus_until?: string | null;
 }
 
 const EMAIL_OK = /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/i;
@@ -21,12 +24,15 @@ export const publicUser = (u: User) => ({
   credits: { media: u.credits_media, pin: u.credits_pin },
   isNew: now() - u.created_at < DAY,
   role: u.role,
+  strikes: u.strikes ?? 0,
+  campusUntil: u.campus_until ?? null,
+  email: u.email ?? null,
 });
 
-export async function startAuth(env: Env, body: any): Promise<Response> {
-  const email = clampStr(body.email, 254).toLowerCase();
+/** sends a 6-digit code to an email (login, or another purpose keyed by `prefix`); locally returns it as devCode */
+export async function issueCode(env: Env, email: string, prefix = "e|", purpose = "קוד הכניסה שלך"): Promise<Response> {
   if (!EMAIL_OK.test(email)) return fail(400, "bad_email", "כתובת המייל לא תקינה.");
-  const emailHash = await hmac(idSecret(env), "e|" + email);
+  const emailHash = await hmac(idSecret(env), prefix + email);
   const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM otp_codes WHERE email_hash=? AND created_at>?")
     .bind(emailHash, now() - 3600_000)
     .first<{ n: number }>();
@@ -39,13 +45,13 @@ export async function startAuth(env: Env, body: any): Promise<Response> {
 
   if (env.RESEND_API_KEY) {
     const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:16px;color:#14161a">
-      <p>קוד הכניסה שלך ל-AddMedia:</p>
+      <p>${purpose} ל-AddMedia:</p>
       <p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">${code}</p>
       <p style="color:#6b7280">הקוד בתוקף ל-10 דקות. אם לא ביקשת אותו, אפשר להתעלם מההודעה.</p></div>`;
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: env.FROM_EMAIL, to: [email], subject: `קוד הכניסה שלך: ${code}`, html, text: `קוד הכניסה שלך ל-AddMedia: ${code}` }),
+      body: JSON.stringify({ from: env.FROM_EMAIL, to: [email], subject: `${purpose}: ${code}`, html, text: `${purpose} ל-AddMedia: ${code}` }),
     });
     if (!r.ok) {
       const detail = await r.text().catch(() => "");
@@ -62,11 +68,10 @@ export async function startAuth(env: Env, body: any): Promise<Response> {
   return fail(503, "email_not_configured", "שליחת מיילים עדיין לא הוגדרה בשרת.");
 }
 
-export async function verifyAuth(env: Env, body: any): Promise<Response> {
-  const email = clampStr(body.email, 254).toLowerCase();
-  const code = clampStr(body.code, 6);
-  if (!EMAIL_OK.test(email) || !/^\d{6}$/.test(code)) return fail(400, "bad_code", "הקוד לא תקין.");
-  const emailHash = await hmac(idSecret(env), "e|" + email);
+/** checks a code issued by issueCode; a wrong code counts an attempt, a right one is consumed. Returns a refusal or null. */
+export async function consumeCode(env: Env, email: string, code: string, prefix = "e|"): Promise<Response | null> {
+  if (!EMAIL_OK.test(email) || !/^\d{6}$/.test(code)) return fail(400, "bad_code", "הקוד שגוי.");
+  const emailHash = await hmac(idSecret(env), prefix + email);
   const row = await env.DB.prepare("SELECT rowid, code_hash, attempts FROM otp_codes WHERE email_hash=? AND expires_at>? ORDER BY created_at DESC LIMIT 1")
     .bind(emailHash, now())
     .first<{ rowid: number; code_hash: string; attempts: number }>();
@@ -76,6 +81,20 @@ export async function verifyAuth(env: Env, body: any): Promise<Response> {
     return fail(400, "bad_code", "הקוד שגוי. נסו שוב.");
   }
   await env.DB.prepare("DELETE FROM otp_codes WHERE email_hash=?").bind(emailHash).run();
+  return null;
+}
+
+export async function startAuth(env: Env, body: any): Promise<Response> {
+  const email = clampStr(body.email, 254).toLowerCase();
+  return await issueCode(env, email);
+}
+
+export async function verifyAuth(env: Env, body: any): Promise<Response> {
+  const email = clampStr(body.email, 254).toLowerCase();
+  const code = clampStr(body.code, 6);
+  const bad = await consumeCode(env, email, code);
+  if (bad) return bad;
+  const emailHash = await hmac(idSecret(env), "e|" + email);
 
   let user = await env.DB.prepare("SELECT * FROM users WHERE email_hash=?").bind(emailHash).first<User>();
   if (!user) {
@@ -85,6 +104,8 @@ export async function verifyAuth(env: Env, body: any): Promise<Response> {
     user = (await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first<User>())!;
   }
   if (user.banned) return fail(403, "banned", "החשבון הושעה בשל הפרת כללי הקהילה.");
+  // the login email is kept so the student profile can show it (read-only); older accounts get it on their next sign-in
+  if (user.email !== email) await env.DB.prepare("UPDATE users SET email=? WHERE id=?").bind(email, user.id).run();
 
   const token = randomId(32);
   await env.DB.prepare("INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?,?,?,?)")

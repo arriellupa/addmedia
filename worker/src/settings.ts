@@ -18,6 +18,10 @@ export interface Settings {
   retentionDays: number; // how long a post or image stays
   linkMedia: boolean; // whether an image may be a live link
   centerAd: CenterAd;
+  campusDocsPerMonth: number; // documents a student may write per month
+  campusCharsPerDoc: number; // characters per document
+  campusCharsTotal: number; // characters across all of a student's documents
+  campusPrice: number; // agorot per semester
 }
 
 export const DEFAULTS: Settings = {
@@ -26,6 +30,10 @@ export const DEFAULTS: Settings = {
   retentionDays: 7,
   linkMedia: true,
   centerAd: { on: false, title: "", body: "", image: null, url: null, label: "ממומן", modes: ["center", "campus"] },
+  campusDocsPerMonth: 20,
+  campusCharsPerDoc: 60_000,
+  campusCharsTotal: 1_000_000,
+  campusPrice: 2990,
 };
 
 let cache: { at: number; s: Settings } | null = null;
@@ -39,6 +47,10 @@ function clean(raw: Partial<Settings>): Settings {
     freeMedia: n(raw.freeMedia, DEFAULTS.freeMedia, 0, 100),
     retentionDays: n(raw.retentionDays, DEFAULTS.retentionDays, 1, 365),
     linkMedia: raw.linkMedia === undefined ? DEFAULTS.linkMedia : !!raw.linkMedia,
+    campusDocsPerMonth: n(raw.campusDocsPerMonth, DEFAULTS.campusDocsPerMonth, 1, 10_000),
+    campusCharsPerDoc: n(raw.campusCharsPerDoc, DEFAULTS.campusCharsPerDoc, 100, 1_000_000),
+    campusCharsTotal: n(raw.campusCharsTotal, DEFAULTS.campusCharsTotal, 100, 100_000_000),
+    campusPrice: n(raw.campusPrice, DEFAULTS.campusPrice, 0, 1_000_000),
     centerAd: {
       on: !!ad.on,
       title: clampStr(ad.title, 120),
@@ -79,5 +91,6 @@ export const publicSettings = (s: Settings) => ({
   freeMedia: s.freeMedia,
   retentionDays: s.retentionDays,
   linkMedia: s.linkMedia,
+  campus: { docsPerMonth: s.campusDocsPerMonth, charsPerDoc: s.campusCharsPerDoc, charsTotal: s.campusCharsTotal, price: s.campusPrice },
   centerAd: s.centerAd.on && s.centerAd.title ? s.centerAd : null,
 });

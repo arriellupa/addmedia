@@ -19,6 +19,7 @@ interface Att {
   name: string | null;
   isNew: boolean;
   canPost: boolean;
+  needStudent?: boolean; // campus room and the person has no student profile
   sent: number[];
 }
 
@@ -36,6 +37,7 @@ export interface PostRow {
   pin_days: number;
   status: string;
   link_url?: string | null;
+  ref?: string | null; // JSON of a reference to a material stored elsewhere (kind "ref")
 }
 
 export interface RoomMeta {
@@ -61,7 +63,18 @@ const postOut = (p: PostRow, liked = false) => ({
   pinned: p.pin_days > 0,
   status: p.status,
   link: p.link_url || null,
+  ref: refOf(p.ref),
 });
+
+/** a "ref" post points at a document or an image stored once elsewhere: {type, id, title, kind, author, link} */
+function refOf(raw: string | null | undefined) {
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
 
 export class PageRoom extends DurableObject<Env> {
   private sql: SqlStorage;
@@ -92,6 +105,7 @@ export class PageRoom extends DurableObject<Env> {
     // an image may be a live link (added later; older rooms get the column on first write)
     const cols = this.sql.exec("PRAGMA table_info(posts)").toArray().map((c: any) => c.name as string);
     if (!cols.includes("link_url")) this.sql.exec("ALTER TABLE posts ADD COLUMN link_url TEXT");
+    if (!cols.includes("ref")) this.sql.exec("ALTER TABLE posts ADD COLUMN ref TEXT");
   }
   private chatTables(): string[] {
     return this.sql
@@ -137,9 +151,9 @@ export class PageRoom extends DurableObject<Env> {
     const t = now();
     const limit = Math.min(opts.limit ?? 20, 50);
     const order = opts.sort === "top" ? "pin_days>0 DESC, like_count DESC, created_at DESC" : "pin_days>0 DESC, created_at DESC";
-    const posts = this.sql.exec(`SELECT * FROM posts WHERE status='visible' AND expires_at>? AND kind='text' ORDER BY ${order} LIMIT ?`, t, limit).toArray() as unknown as PostRow[];
+    const posts = this.sql.exec(`SELECT * FROM posts WHERE status='visible' AND expires_at>? AND kind IN ('text','ref') ORDER BY ${order} LIMIT ?`, t, limit).toArray() as unknown as PostRow[];
     const media = this.sql.exec(`SELECT * FROM posts WHERE status='visible' AND expires_at>? AND kind='image' ORDER BY pin_days>0 DESC, created_at DESC LIMIT 30`, t).toArray() as unknown as PostRow[];
-    const counts = this.sql.exec(`SELECT SUM(kind='text') AS p, SUM(kind='image') AS m FROM posts WHERE status='visible' AND expires_at>?`, t).one() as any;
+    const counts = this.sql.exec(`SELECT SUM(kind IN ('text','ref')) AS p, SUM(kind='image') AS m FROM posts WHERE status='visible' AND expires_at>?`, t).one() as any;
     const liked = this.likedSet(opts.viewer, [...posts, ...media].map((p) => p.id));
     return {
       exists: true,
@@ -155,10 +169,10 @@ export class PageRoom extends DurableObject<Env> {
 
   async listPosts(opts: { before?: number; kind?: string; viewer?: string | null; sort?: "new" | "top" }) {
     if (!this.tableExists("posts")) return { posts: [], next: null };
-    const kind = opts.kind === "image" ? "image" : "text";
+    const kinds = opts.kind === "image" ? ["image", "image"] : ["text", "ref"];
     const before = opts.before ?? Number.MAX_SAFE_INTEGER;
     const rows = this.sql
-      .exec(`SELECT * FROM posts WHERE status='visible' AND expires_at>? AND kind=? AND created_at<? ORDER BY created_at DESC LIMIT 21`, now(), kind, before)
+      .exec(`SELECT * FROM posts WHERE status='visible' AND expires_at>? AND kind IN (?,?) AND created_at<? ORDER BY created_at DESC LIMIT 21`, now(), kinds[0], kinds[1], before)
       .toArray() as unknown as PostRow[];
     const page = rows.slice(0, 20);
     const liked = this.likedSet(opts.viewer, page.map((p) => p.id));
@@ -172,15 +186,15 @@ export class PageRoom extends DurableObject<Env> {
   }
 
   // ---------- writes ----------
-  async addPost(p: { uid: string; name: string; kind: "text" | "image"; body: string; mediaKey?: string | null; parentId?: string | null; meta: RoomMeta; status?: string; link?: string | null; ttlDays?: number }) {
+  async addPost(p: { uid: string; name: string; kind: "text" | "image" | "ref"; body: string; mediaKey?: string | null; parentId?: string | null; meta: RoomMeta; status?: string; link?: string | null; ttlDays?: number; ref?: unknown }) {
     this.ensurePosts();
     this.setMeta(p.meta);
     const id = sortableId();
     const t = now();
     const status = p.status || "visible";
     this.sql.exec(
-      "INSERT INTO posts (id, created_at, user_id, user_name, kind, body, media_key, parent_id, expires_at, status, link_url) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-      id, t, p.uid, p.name, p.kind, p.body, p.mediaKey ?? null, p.parentId ?? null, t + (p.ttlDays ? p.ttlDays * DAY : POST_TTL), status, p.link ?? null,
+      "INSERT INTO posts (id, created_at, user_id, user_name, kind, body, media_key, parent_id, expires_at, status, link_url, ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      id, t, p.uid, p.name, p.kind, p.body, p.mediaKey ?? null, p.parentId ?? null, t + (p.ttlDays ? p.ttlDays * DAY : POST_TTL), status, p.link ?? null, p.ref ? JSON.stringify(p.ref) : null,
     );
     await this.scheduleAlarm();
     const row = this.sql.exec("SELECT * FROM posts WHERE id=?", id).one() as unknown as PostRow;
@@ -250,7 +264,8 @@ export class PageRoom extends DurableObject<Env> {
     return { found: true, hidden: false, uid: f.row.user_id ?? f.row.uid };
   }
 
-  async setStatus(type: "post" | "chat", id: string, status: "visible" | "removed") {
+  /** visible | removed | hold ("hold": hidden while a takedown notice is reviewed; the media stays until a final removal) */
+  async setStatus(type: "post" | "chat", id: string, status: "visible" | "removed" | "hold") {
     const f = this.findItem(type, id);
     if (!f) return { ok: false };
     this.sql.exec(`UPDATE ${f.table} SET status=? WHERE id=?`, status, id);
@@ -258,9 +273,9 @@ export class PageRoom extends DurableObject<Env> {
       if (type === "post") this.queue({ t: "post", post: postOut({ ...f.row, status }) });
     } else {
       this.queue({ t: "hide", id, itemType: type });
-      if (type === "post" && f.row.media_key) await this.env.MEDIA.delete(f.row.media_key);
+      if (status === "removed" && type === "post" && f.row.media_key) await this.env.MEDIA.delete(f.row.media_key);
     }
-    return { ok: true };
+    return { ok: true, uid: f.row.uid ?? f.row.user_id ?? null, prev: f.row.status };
   }
 
   async deleteOwn(postId: string, uid: string) {
@@ -299,6 +314,7 @@ export class PageRoom extends DurableObject<Env> {
       name: req.headers.get("X-Name") ? decodeURIComponent(req.headers.get("X-Name")!) : null,
       isNew: req.headers.get("X-New") === "1",
       canPost: req.headers.get("X-Can-Post") === "1",
+      needStudent: req.headers.get("X-Need-Student") === "1",
       sent: [],
     };
     const metaHeader = req.headers.get("X-Meta");
@@ -330,6 +346,7 @@ export class PageRoom extends DurableObject<Env> {
     const reply = (o: unknown) => ws.send(JSON.stringify(o));
     const cid = String(msg.cid ?? "").slice(0, 40);
     if (!att.uid || !att.canPost) return reply({ t: "nack", cid, code: "auth", message: "צריך להתחבר כדי לכתוב." });
+    if (att.needStudent) return reply({ t: "nack", cid, code: "student", message: "כדי להשתתף בקמפוס צריך להזדהות: שם, פקולטה, שנה ומגמה" });
     const body = String(msg.body ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_CHAT);
     if (!body) return;
 

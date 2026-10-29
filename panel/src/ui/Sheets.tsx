@@ -4,6 +4,7 @@ import { ago, count, date, left, price } from "../fmt";
 import { host } from "../host";
 import { Ban, Check, Copy, Flag, Heart, ImageI, LogOut, Mail, Pin, Shield, Sparkles, Trash } from "../icons";
 import { blockUser, blocked, bundle, me, page, posts, media, report, retentionDays, roomId, say, scope, sheet, signOut, signedIn, toggleLike, unblockUser, uploadImage } from "../state";
+import { AttachSheet } from "./Attach";
 import { Avatar, SheetFrame } from "./Bits";
 import { mediaUrl } from "./Media";
 
@@ -15,6 +16,7 @@ export function Sheets() {
   if (s.type === "report") return <ReportSheet itemType={s.itemType} item={s.item} />;
   if (s.type === "viewer") return <Viewer post={s.post} />;
   if (s.type === "mymedia") return <MyMedia section={s.section} pinFor={s.pinFor} />;
+  if (s.type === "attach") return <AttachSheet />;
   return null;
 }
 
@@ -302,8 +304,14 @@ function MyMedia({ section = "create", pinFor }: { section?: Section; pinFor?: P
           <div class="mm-name">{u.name}</div>
           <div class="mm-credits">
             <span class="num">{u.credits.media}</span> העלאות זמינות
+            {!!u.holds && <> · <span class="mm-hold">{u.holds} בבדיקה לאחר בקשת הסרה</span></>}
           </div>
         </div>
+        {host.kind === "web" && location.pathname.startsWith("/media/") && (
+          <button class="btn btn-secondary btn-sm mm-student" onClick={() => (sheet.value = { type: "student" })}>
+            פרטי סטודנט
+          </button>
+        )}
       </div>
       <div class="seg seg-wide" role="tablist">
         {(

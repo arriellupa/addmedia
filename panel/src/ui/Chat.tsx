@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ChatMsg } from "../api";
 import { clock, count } from "../fmt";
 import { ArrowDown, Clock, More, Plus, Refresh, Send } from "../icons";
-import { bundle, canPost, me, needAuth, presence, retryChat, scope, scopeNames, sendChat, setScope, sheet, slow, slowUntil, visibleChat } from "../state";
+import { bundle, canPost, composerInsert, me, needAuth, presence, retryChat, scope, scopeNames, sendChat, setScope, sheet, slow, slowUntil, visibleChat } from "../state";
 import { Avatar, ClipArt, LiveDot } from "./Bits";
 
 const GROUP_MS = 2 * 60_000;
@@ -190,6 +190,14 @@ function ChatComposer() {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, []);
+
+  useEffect(() => {
+    const ins = composerInsert.value;
+    if (!ins) return;
+    composerInsert.value = null;
+    setText((t) => (t ? t.replace(/\s*$/, " ") : "") + ins + " ");
+    requestAnimationFrame(() => ref.current?.focus());
+  }, [composerInsert.value]);
 
   if (!canPost.value) return <div class="composer-off">השיחה כבויה בדף הזה לבקשת בעל האתר.</div>;
   const submit = () => {

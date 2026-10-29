@@ -4,6 +4,7 @@ import type { Post } from "../api";
 import { ago, count, left } from "../fmt";
 import { Heart, More, Pin, Reply, X } from "../icons";
 import { bundle, canPost, loadMorePosts, me, needAuth, postsNext, replyTo, retentionDays, scope, scopeNames, sheet, sort, setSort, submitPost, toggleLike, visiblePosts } from "../state";
+import { RefCard } from "./Attach";
 import { Avatar, Sponsored } from "./Bits";
 
 export function CommentsView() {
@@ -82,9 +83,13 @@ function CardBody({ p, reply }: { p: Post; reply?: boolean }) {
             </span>
           )}
         </div>
-        <div class="cb-text" dir="auto">
-          {p.body}
-        </div>
+        {p.kind === "ref" ? (
+          <RefCard p={p} />
+        ) : (
+          <div class="cb-text" dir="auto">
+            {p.body}
+          </div>
+        )}
         <div class="cb-actions">
           <button class={`act ${p.liked ? "liked" : ""}`} aria-pressed={p.liked} aria-label={p.liked ? "ביטול לייק" : "לייק"} onClick={() => toggleLike(p)}>
             <Heart size={16} fill={p.liked} />

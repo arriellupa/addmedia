@@ -14,6 +14,7 @@ async function lastPlace(): Promise<string> {
   return "/media/campus";
 }
 import { bundle, me, page, presence, scope, setScope, sheet, status, tab, visibleChat, type Tab } from "../state";
+import { AttachButton } from "./Attach";
 import { Avatar, LiveDot } from "./Bits";
 import { GoBar } from "./GoBar";
 
@@ -90,6 +91,7 @@ export function Header() {
                 <External />
               </a>
             )}
+            {p && <AttachButton compact />}
             {host.kind === "extension" && (
               <button class="icon-btn" aria-label="הקמפוס: מאמרים וסיכומים לפי פקולטה ושנה" title="הקמפוס" onClick={async () => host.open((API_BASE || "https://addmedia.noaplate.com") + (await lastPlace()))}>
                 <Cap />

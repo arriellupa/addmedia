@@ -58,7 +58,9 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const when = (t) => (t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "");
 const REASON = { spam: "ספאם", harassment: "הטרדה", hate: "שנאה", violence: "אלימות", sexual: "מיני", intimate: "אינטימי ללא הסכמה", minor: "קטינים", privacy: "פרטיות", copyright: "זכויות יוצרים", other: "אחר" };
-const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית" };
+const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית", takedown: "הוסר לבקשת בעל זכויות", course_meta: "פרטי קורס עודכנו", remove_doc: "מסמך הוסר", remove_event: "אירוע הוסר", create_doc: "מסמך נכתב", edit_doc: "מסמך נערך", student_profile: "פרופיל סטודנט", hold: "הוקפא לאחר בקשת הסרה", restore: "הושב", grant_campus: "מנוי קמפוס הוענק" };
+const KIND = { summary: "סיכום", exercise: "תרגול", article: "מאמר" };
+const ROLE = { lecturer: "מרצה", institution: "מוסד", author: "מחבר/ת", other: "אחר" };
 let token = sessionStorage.getItem("am_admin") || "";
 async function api(path, opts = {}) {
   const r = await fetch("/v1/admin/" + path, { method: opts.method || "GET", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: opts.body ? JSON.stringify(opts.body) : undefined });
@@ -71,7 +73,7 @@ function showLogin(err = "") { $("#login").hidden = false; $("#app").hidden = tr
 $("#login").addEventListener("submit", async (e) => { e.preventDefault(); token = $("#tok").value.trim(); sessionStorage.setItem("am_admin", token); start(); });
 $("#logout").addEventListener("click", (e) => { e.preventDefault(); sessionStorage.removeItem("am_admin"); token = ""; showLogin(); });
 
-const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"], ["settings", "הגדרות ופרסומת"], ["docs", "מאמרים וסיכומים"]];
+const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"], ["settings", "הגדרות ופרסומת"], ["docs", "מאמרים וסיכומים"], ["takedowns", "הודעות הסרה"]];
 let cur = "reports";
 async function start() {
   try { const s = await api("stats"); renderStats(s); } catch { return; }
@@ -120,7 +122,7 @@ const VIEWS = {
   async users() {
     const q = $("#uq")?.value || "";
     const { users } = await api("users?q=" + encodeURIComponent(q));
-    return `<div class="row" style="margin-top:16px"><input id="uq" placeholder="חיפוש לפי שם או מזהה" value="${esc(q)}"><button class="btn btn-secondary" id="us">חיפוש</button></div><table style="margin-top:12px"><tr><th>שם</th><th>מזהה</th><th>הצטרף</th><th>העלאות</th><th></th></tr>${users.map((u) => `<tr data-id="${esc(u.id)}"><td>${esc(u.display_name)}</td><td class="small" dir="ltr">${esc(u.id)}</td><td>${when(u.created_at)}</td><td>${u.credits_media}</td><td>${u.banned ? '<button class="btn btn-secondary" data-a="unban">ביטול השעיה</button>' : '<button class="btn btn-danger" data-a="ban">השעיה</button> <button class="btn btn-secondary" data-a="credit">+5 העלאות</button>'}</td></tr>`).join("")}</table>`;
+    return `<div class="row" style="margin-top:16px"><input id="uq" placeholder="חיפוש לפי שם או מזהה" value="${esc(q)}"><button class="btn btn-secondary" id="us">חיפוש</button></div><table style="margin-top:12px"><tr><th>שם</th><th>סטודנט</th><th>מזהה</th><th>הצטרף</th><th>העלאות</th><th>פסילות</th><th>קמפוס עד</th><th></th></tr>${users.map((u) => `<tr data-id="${esc(u.id)}"><td>${esc(u.display_name)}</td><td class="small">${u.full_name ? `${esc(u.full_name)}<br>${esc(u.inst)} · ${esc(u.faculty)} · שנה ${u.year} · ${esc(u.track)}${u.email ? `<br><span dir="ltr">${esc(u.email)}</span>` : ""}` : ""}</td><td class="small" dir="ltr">${esc(u.id)}</td><td>${when(u.created_at)}</td><td>${u.credits_media}</td><td>${u.strikes || 0}</td><td>${esc(u.campus_until || "")}</td><td>${u.banned ? '<button class="btn btn-secondary" data-a="unban">ביטול השעיה</button>' : '<button class="btn btn-danger" data-a="ban">השעיה</button> <button class="btn btn-secondary" data-a="credit">+5 העלאות</button> <button class="btn btn-secondary" data-a="campus">קמפוס לסמסטר</button>'}</td></tr>`).join("")}</table>`;
   },
   async ads() {
     const { ads } = await api("ads");
@@ -149,6 +151,13 @@ const VIEWS = {
         <label>ימי שמירה לתוכן<br><input name="retentionDays" type="number" min="1" max="365" value="${s.retentionDays}" style="width:110px"></label>
         <label style="align-self:end"><input name="linkMedia" type="checkbox" ${ck(s.linkMedia)}> תמונות יכולות להיות קישור חי</label>
       </div>
+      <h3 style="margin:8px 0 0">הקמפוס</h3>
+      <div class="row" style="gap:18px;flex-wrap:wrap">
+        <label>מסמכים לסטודנט בחודש<br><input name="campusDocsPerMonth" type="number" min="1" max="10000" value="${s.campusDocsPerMonth}" style="width:110px"></label>
+        <label>תווים למסמך<br><input name="campusCharsPerDoc" type="number" min="100" max="1000000" value="${s.campusCharsPerDoc}" style="width:130px"></label>
+        <label>תווים סה״כ לסטודנט<br><input name="campusCharsTotal" type="number" min="100" max="100000000" value="${s.campusCharsTotal}" style="width:150px"></label>
+        <label>מחיר לסמסטר (אגורות)<br><input name="campusPrice" type="number" min="0" max="1000000" value="${s.campusPrice}" style="width:110px"><div class="small">${(s.campusPrice / 100).toFixed(2)} ₪</div></label>
+      </div>
       <h3 style="margin:8px 0 0">חלון הפרסום במרכז</h3>
       <div class="small">מוצג בדף המדיה, במרכז המסך. רק מכאן אפשר לשנות אותו.</div>
       <label><input name="ad_on" type="checkbox" ${ck(ad.on)}> מופעל</label>
@@ -168,7 +177,25 @@ const VIEWS = {
   async docs() {
     const { docs } = await api("docs");
     if (!docs.length) return '<p class="small" style="margin-top:16px">עוד לא הועלו מסמכים.</p>';
-    return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>מקום</th><th>סוג</th><th>כותרת</th><th>גודל</th><th></th></tr>${docs.map((d) => `<tr data-id="${esc(d.id)}"><td>${when(d.created_at)}</td><td>${esc(d.user_name)}</td><td>${esc(d.inst)} · ${esc(d.faculty)} · ${d.year}${d.course ? " · " + esc(d.course) : ""}</td><td>${d.kind === "summary" ? "סיכום" : "מאמר"}</td><td><a href="/v1/campus/docs/${esc(d.id)}/file" target="_blank" rel="noopener">${esc(d.title)}</a></td><td>${Math.round(d.size / 1024)} KB</td><td><button class="btn btn-danger btn-sm" data-del="${esc(d.id)}">הסרה</button></td></tr>`).join("")}</table>`;
+    const who = (d) => d.full_name ? `${esc(d.full_name)}<div class="small">${esc(d.s_inst)} · ${esc(d.s_faculty)} · שנה ${d.s_year} · ${esc(d.track)}${d.email ? ` · <span dir="ltr">${esc(d.email)}</span>` : ""}</div>` : `${esc(d.user_name)}<div class="small">בלי פרופיל סטודנט</div>`;
+    return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>פסילות</th><th>מקום</th><th>סוג</th><th>כותרת</th><th>תווים</th><th>מצב</th><th></th></tr>${docs.map((d) => `<tr data-id="${esc(d.id)}"><td>${when(d.created_at)}${d.updated_at && d.updated_at !== d.created_at ? `<div class="small">נערך ${when(d.updated_at)}</div>` : ""}</td><td>${who(d)}</td><td>${d.strikes ? `<span class="tag ${d.strikes >= 3 ? "red" : ""}">${d.strikes}</span>` : "0"}</td><td>${esc(d.inst)} · ${esc(d.faculty)} · ${d.year}${d.course ? " · " + esc(d.course) : ""}</td><td>${KIND[d.kind] || esc(d.kind)}${d.lecturer_name ? `<div class="small">${esc(d.lecturer_name)}${d.lesson_date ? " · " + esc(d.lesson_date) : ""}${d.lesson_no ? " · שיעור " + d.lesson_no : ""}</div>` : ""}</td><td><a href="/media/campus/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.link_url ? ` <a class="small" href="${esc(d.link_url)}" target="_blank" rel="noopener" dir="ltr">מקור</a>` : ""}</td><td>${d.chars ?? 0}</td><td>${d.status === "visible" ? "" : `<span class="tag red">${d.status === "hold" ? "מוקפא" : esc(d.status)}</span>`}</td><td>${d.status === "removed" ? "" : `<button class="btn btn-danger btn-sm" data-del="${esc(d.id)}">הסרה</button>`}</td></tr>`).join("")}</table>`;
+  },
+  async takedowns() {
+    const { takedowns } = await api("campus/takedowns");
+    if (!takedowns.length) return '<p class="small" style="margin-top:16px">אין הודעות הסרה.</p>';
+    const STATUS = { open: "פתוחה · הפריטים מוקפאים", handled: "הוסר סופית", reverted: "הושב (הבקשה נדחתה)" };
+    return '<div class="list">' + takedowns.map((t) => {
+      const m = t.meta || {};
+      const place = [m.inst, m.faculty, m.year ? "שנה " + m.year : "", m.course].filter(Boolean).map(esc).join(" · ");
+      const docs = (t.docs || []).map((d) => `<label class="row" style="gap:6px"><input type="checkbox" class="td-doc" value="${esc(d.id)}" style="width:auto" ${d.status === "removed" ? "disabled" : "checked"}> ${KIND[d.kind] || esc(d.kind)} · <a href="/media/campus/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a> · ${esc(d.name)}${d.status && d.status !== "visible" ? ` <span class="tag ${d.status === "removed" ? "red" : ""}">${d.status === "hold" ? "מוקפא" : esc(d.status)}</span>` : ""}${(m.items || []).find((i) => i.id === d.id)?.sections ? ` <span class="small">סעיפים ${(m.items.find((i) => i.id === d.id).sections).join(", ")}</span>` : ""}</label>`).join("");
+      const others = (m.items || []).filter((i) => i.type !== "doc").map((i) => `<div class="small">${i.type === "chat" ? "צ׳אט" : "תגובה/תמונה"} <span dir="ltr">${esc(i.id)}</span> בחדר <span dir="ltr">${esc(i.roomId || "")}</span>${i.held ? ' <span class="tag">מוקפא</span>' : ""}</div>`).join("");
+      return `<div class="item" data-id="${esc(t.id)}"><div class="row"><span class="tag red">${ROLE[m.role] || esc(m.role || "")}</span><span class="tag">${STATUS[t.status] || esc(t.status)}</span><span class="small">${when(t.created_at)}</span></div>
+        <div class="small" style="margin-top:6px">${esc(t.name || "")} · <a href="mailto:${esc(t.email)}" dir="ltr">${esc(t.email)}</a>${t.phone ? ` · <span dir="ltr">${esc(t.phone)}</span>` : ""}${place ? " · " + place : ""}${m.viewer ? ` · משתמש <span dir="ltr">${esc(m.viewer)}</span>` : ""}</div>
+        <div class="body">${esc(t.message)}</div>
+        ${docs ? `<div style="display:grid;gap:4px">${docs}</div>` : ""}${others}${!docs && !others ? '<div class="small">לא צוינו פריטים.</div>' : ""}
+        ${t.status === "open" ? `<div class="row" style="margin-top:10px"><button class="btn btn-danger" data-a="apply">הסרה סופית של המסומנים</button>${place ? '<button class="btn btn-danger" data-a="all">הסרת כל המסמכים במקום</button>' : ""}<button class="btn btn-secondary" data-a="restore">השבה (דחיית הבקשה)</button></div>` : ""}
+      </div>`;
+    }).join("") + "</div>";
   },
 };
 const BIND = {
@@ -178,6 +205,7 @@ const BIND = {
       const f = new FormData(e.target);
       const body = {
         pageThreshold: Number(f.get("pageThreshold")), freeMedia: Number(f.get("freeMedia")), retentionDays: Number(f.get("retentionDays")), linkMedia: !!f.get("linkMedia"),
+        campusDocsPerMonth: Number(f.get("campusDocsPerMonth")), campusCharsPerDoc: Number(f.get("campusCharsPerDoc")), campusCharsTotal: Number(f.get("campusCharsTotal")), campusPrice: Number(f.get("campusPrice")),
         centerAd: { on: !!f.get("ad_on"), label: f.get("ad_label"), title: f.get("ad_title"), body: f.get("ad_body"), url: f.get("ad_url") || null, image: f.get("ad_image") || null,
           modes: [f.get("mode_center") ? "center" : null, f.get("mode_campus") ? "campus" : null].filter(Boolean) },
       };
@@ -197,6 +225,16 @@ const BIND = {
       start();
     };
   },
+  takedowns(v) {
+    v.onclick = async (e) => {
+      const a = e.target.dataset.a; if (!a) return;
+      const it = e.target.closest(".item"); const id = it.dataset.id;
+      if (a === "restore") { if (!confirm("להשיב את הפריטים המוקפאים ולדחות את הבקשה? (שלוש דחיות חוסמות את הפונה)")) return; await api(`campus/takedown/${id}/restore`, { method: "POST" }); }
+      if (a === "apply") { const docIds = [...it.querySelectorAll(".td-doc:checked")].map((x) => x.value); if (!confirm(docIds.length ? `להסיר סופית ${docIds.length} מסמכים ולרשום פסילה לכותבים?` : "להסיר סופית את כל הפריטים שהבקשה הקפיאה ולרשום פסילה?")) return; await api(`campus/takedown/${id}/apply`, { method: "POST", body: docIds.length ? { docIds } : {} }); }
+      if (a === "all") { if (!confirm("להסיר את כל המסמכים הגלויים במקום הזה?")) return; await api(`campus/takedown/${id}/apply`, { method: "POST", body: { all: true } }); }
+      start();
+    };
+  },
   contacts(v) { v.onclick = async (e) => { if (e.target.dataset.a === "done") { await api("contacts/" + e.target.closest(".item").dataset.id, { method: "POST" }); start(); } }; },
   users(v) {
     $("#us").onclick = () => render();
@@ -205,6 +243,7 @@ const BIND = {
       if (a === "ban") { const purge = confirm("למחוק גם את כל התוכן שפרסם?"); await api("users/" + id, { method: "POST", body: { ban: true, purge, note: prompt("נימוק:") || "" } }); }
       if (a === "unban") await api("users/" + id, { method: "POST", body: { ban: false } });
       if (a === "credit") await api("credits", { method: "POST", body: { userId: id, media: 5 } });
+      if (a === "campus") await api("campus/grant", { method: "POST", body: { userId: id, days: 182 } });
       render();
     };
   },

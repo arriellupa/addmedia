@@ -2,19 +2,19 @@
 // (the operator's ad, or the room's card), the live chat (left), the talkbacks (center), the readers' media strip
 // (bottom). A tap on the cap turns it into the campus: institution › faculty › year › course, with articles and summaries.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { API_BASE, CampusDoc, CenterAd as CenterAdT, Post } from "../api";
-import { ago, count, date } from "../fmt";
-import { Book, Cap, Chevron, External, FileI, Globe, Grid, ImageI, LinkI, Plus, Radar, Refresh, Star, Trash, Upload, X } from "../icons";
+import { API_BASE, CenterAd as CenterAdT, Post } from "../api";
+import { count } from "../fmt";
+import { Book, Cap, Chevron, External, FileI, Globe, Grid, ImageI, LinkI, Plus, Radar, Refresh, Star, X } from "../icons";
 import { bundle, canPost, load, loadError, loading, me, needAuth, page, presence, scope, setScope, sheet, status, uploadImage, visibleMedia } from "../state";
+import { AttachButton, RefCard } from "../ui/Attach";
 import { Avatar, LiveDot, Sponsored, Toast } from "../ui/Bits";
 import { ChatView } from "../ui/Chat";
 import { CommentsView } from "../ui/Comments";
 import { GoBar } from "../ui/GoBar";
 import { Sheets } from "../ui/Sheets";
-import {
-  YEAR_HE, currentPath, directory, docs, docsBusy, followed, follows, instName, joinRoom, loadDirectory, loadTree, mode, openPlace, openDocRoom, picker, place, placeTitle,
-  removeDoc, slug, toggleFollow, toggleMode, tree, unslug, uploadDoc,
-} from "./state";
+import { CampusPage } from "./campus/CampusPage";
+import { Dialog } from "./Dialog";
+import { currentPath, directory, followed, follows, instName, joinRoom, loadDirectory, mode, picker, place, placeTitle, toggleFollow, toggleMode } from "./state";
 
 const mediaUrl = (path: string) => API_BASE + path;
 
@@ -27,12 +27,26 @@ export function MediaPage() {
     const t2 = setTimeout(loadDirectory, 4_000); // once our own presence has been reported
     return () => (clearInterval(t), clearTimeout(t2));
   }, [mode.value, bundle.value?.roomId]);
+  if (campus)
+    return (
+      <div class={`app layout-web mc mode-campus`}>
+        <Top />
+        <CampusPage radar={<RadarTile />} media={<MediaStrip onAdd={() => needAuth(() => setUpload(true))} />} />
+        {upload && <UploadDialog onClose={() => setUpload(false)} />}
+        <Sheets />
+        <Toast />
+      </div>
+    );
   return (
     <div class={`app layout-web mc mode-${mode.value}`}>
       <Top />
       <div class="mc-grid">
-        <aside class="pane t-radar">{campus ? <DocsTile /> : <RadarTile />}</aside>
-        <section class="pane t-center">{campus ? <PlaceTile /> : <CenterTile />}</section>
+        <aside class="pane t-radar">
+          <RadarTile />
+        </aside>
+        <section class="pane t-center">
+          <CenterTile />
+        </section>
         <section class="pane t-chat">
           <TileHead live={presence.value > 1} title="שיחה חיה" n={presence.value} />
           <div class="pane-views">{bundle.value && !bundle.value.disabled ? <ChatView /> : <TileEmpty />}</div>
@@ -44,14 +58,8 @@ export function MediaPage() {
         <section class="pane t-media">
           <MediaStrip onAdd={() => needAuth(() => setUpload(true))} />
         </section>
-        {campus && (
-          <aside class="pane t-radar2">
-            <RadarTile />
-          </aside>
-        )}
       </div>
       {upload && <UploadDialog onClose={() => setUpload(false)} />}
-      {picker.value && <Picker />}
       <Sheets />
       <Toast />
     </div>
@@ -235,9 +243,12 @@ function RoomCard() {
           )}
         </div>
         {mode.value === "center" && (
-          <a class="icon-btn" href={p.url} target="_blank" rel="noopener" title="פתיחת הדף">
-            <External />
-          </a>
+          <>
+            <AttachButton />
+            <a class="icon-btn" href={p.url} target="_blank" rel="noopener" title="פתיחת הדף">
+              <External />
+            </a>
+          </>
         )}
       </div>
       {b && !b.disabled && (
@@ -298,196 +309,6 @@ function CenterAd({ ad }: { ad: CenterAdT }) {
   );
 }
 
-// ---------- campus: the place, its documents ----------
-function PlaceTile() {
-  const pl = place.value;
-  const b = bundle.value;
-  const ad = b?.settings?.centerAd;
-  if (!pl)
-    return (
-      <div class="center-welcome">
-        <div class="cw-title">הקמפוס</div>
-        <div class="cw-sub">סטודנטים נפגשים סביב מאמר או קורס, לפי מוסד, פקולטה ושנה. בחרו את הפקולטה שלכם — ושמרו אותה בכוכב, כדי שתחכה לכם תמיד.</div>
-        <button class="btn btn-primary" onClick={() => (picker.value = true)}>
-          <Cap size={16} /> בחירת פקולטה
-        </button>
-      </div>
-    );
-  return (
-    <>
-      <div class="room-card">
-        <div class="crumbs">
-          <span>{instName(pl.inst)}</span>
-          <Chevron size={12} class="crumb-sep" />
-          <span>{unslug(pl.faculty)}</span>
-          <Chevron size={12} class="crumb-sep" />
-          <button class="crumb-btn" onClick={() => pl.course && openPlace({ inst: pl.inst, faculty: pl.faculty, year: pl.year })}>
-            שנה {YEAR_HE[pl.year]}
-          </button>
-          {pl.course && (
-            <>
-              <Chevron size={12} class="crumb-sep" />
-              <b>{unslug(pl.course)}</b>
-            </>
-          )}
-        </div>
-        <CourseEntry />
-        {b && !b.disabled && pl.course && (
-          <div class="scope" role="tablist" aria-label="היקף השיחה">
-            <button role="tab" aria-selected={scope.value === "page"} class={scope.value === "page" ? "on" : ""} onClick={() => setScope("page")}>
-              <Book size={15} /> השיעור
-            </button>
-            <button role="tab" aria-selected={scope.value === "site"} class={scope.value === "site" ? "on" : ""} onClick={() => setScope("site")}>
-              <Cap size={15} /> כל שנה {YEAR_HE[pl.year]}
-              {scope.value === "page" && b.other.presence > 0 && (
-                <span class="scope-n num">
-                  <LiveDot /> {count(b.other.presence)}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
-        {b && (
-          <div class="room-stats">
-            <span>
-              <b class="num">{count(presence.value)}</b> כאן עכשיו
-            </span>
-            <span>
-              <b class="num">{count(b.room.postCount)}</b> טוקבקים
-            </span>
-            <span>
-              <b class="num">{count(docs.value.length)}</b> מסמכים
-            </span>
-          </div>
-        )}
-      </div>
-      {ad && ad.modes.includes("campus") && <CenterAd ad={ad} />}
-    </>
-  );
-}
-
-function CourseEntry() {
-  const pl = place.value!;
-  const [v, setV] = useState("");
-  const go = () => {
-    const c = slug(v);
-    if (c.length < 2) return;
-    openPlace({ inst: pl.inst, faculty: pl.faculty, year: pl.year, course: c });
-    setV("");
-  };
-  return (
-    <div class="course-entry">
-      <input class="input" dir="auto" value={v} placeholder={pl.course ? "נושא שיעור או קורס אחר…" : "נושא השיעור או הקורס (למשל: דיני חוזים) — וחדר נפתח"} maxLength={60} onInput={(e) => setV(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
-      <button class="btn btn-secondary btn-sm" onClick={go} disabled={slug(v).length < 2}>
-        פתיחה
-      </button>
-    </div>
-  );
-}
-
-function DocsTile() {
-  const pl = place.value;
-  const [kind, setKind] = useState<"all" | "article" | "summary">("all");
-  const [up, setUp] = useState<"article" | "summary" | null>(null);
-  const list = docs.value.filter((d) => kind === "all" || d.kind === kind);
-  return (
-    <>
-      <TileHead title="מאמרים וסיכומים" n={docs.value.length} right={<Book size={16} class="muted" />} />
-      {!pl ? (
-        <div class="pane-empty">כאן יהיו המאמרים וסיכומי השיעור של הפקולטה והקורס.</div>
-      ) : (
-        <>
-          <div class="seg seg-sm" role="tablist">
-            {(["all", "article", "summary"] as const).map((k) => (
-              <button key={k} role="tab" aria-selected={kind === k} class={kind === k ? "on" : ""} onClick={() => setKind(k)}>
-                {k === "all" ? "הכול" : k === "article" ? "מאמרים" : "סיכומים"}
-              </button>
-            ))}
-          </div>
-          <div class="docs-list">
-            {docsBusy.value && !list.length && <div class="pane-empty">טוען…</div>}
-            {!docsBusy.value && !list.length && <div class="pane-empty">עוד אין כאן {kind === "summary" ? "סיכומים" : kind === "article" ? "מאמרים" : "מסמכים"}. הראשון שלכם?</div>}
-            {list.map((d) => (
-              <DocRow key={d.id} d={d} />
-            ))}
-          </div>
-          <div class="docs-actions">
-            <button class="btn btn-secondary btn-sm" onClick={() => needAuth(() => setUp("article"))}>
-              <Upload size={14} /> מאמר
-            </button>
-            <button class="btn btn-secondary btn-sm" onClick={() => needAuth(() => setUp("summary"))}>
-              <Upload size={14} /> סיכום שיעור
-            </button>
-          </div>
-        </>
-      )}
-      {up && <DocUpload kind={up} onClose={() => setUp(null)} />}
-    </>
-  );
-}
-
-function DocRow({ d }: { d: CampusDoc }) {
-  const mine = me.value?.id === d.uid;
-  return (
-    <div class="doc">
-      <span class={`doc-kind ${d.kind}`}>{d.kind === "article" ? "מאמר" : "סיכום"}</span>
-      <div class="doc-main">
-        <a class="doc-title" dir="auto" href={mediaUrl(d.file)} target="_blank" rel="noopener" title="פתיחת ה-PDF">
-          {d.title}
-        </a>
-        <div class="doc-sub">
-          {d.name} · {date(d.ts)} · {Math.max(1, Math.round(d.size / 1024))}KB{d.place.course ? ` · ${unslug(d.place.course)}` : ""}
-        </div>
-      </div>
-      <button class="icon-btn sm" title="לדיון על המסמך" onClick={() => openDocRoom(d)}>
-        <Radar size={14} />
-      </button>
-      {mine && (
-        <button class="icon-btn sm" title="מחיקה" onClick={() => confirm("למחוק את המסמך?") && removeDoc(d.id)}>
-          <Trash size={14} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function DocUpload({ kind, onClose }: { kind: "article" | "summary"; onClose: () => void }) {
-  const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  const pl = place.value!;
-  return (
-    <Dialog title={kind === "article" ? "העלאת מאמר" : "העלאת סיכום שיעור"} onClose={onClose}>
-      <div class="target">
-        ל: <strong>{placeTitle(pl)}</strong>
-      </div>
-      <label class="field">
-        <span>כותרת</span>
-        <input class="input" dir="auto" maxLength={160} value={title} onInput={(e) => setTitle(e.currentTarget.value)} placeholder={kind === "article" ? "שם המאמר והמחבר" : "שם הקורס, השיעור והתאריך"} />
-      </label>
-      <button class="drop" onClick={() => input.current?.click()}>
-        <FileI size={26} />
-        <span class="drop-title">{file ? file.name : "בחירת קובץ PDF"}</span>
-        <span class="drop-sub">עד 15MB</span>
-      </button>
-      <input ref={input} type="file" accept="application/pdf" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] || null)} />
-      <button
-        class="btn btn-primary btn-block"
-        disabled={!file || title.trim().length < 3 || busy}
-        onClick={async () => {
-          setBusy(true);
-          if (await uploadDoc(kind, title.trim(), file!)) onClose();
-          setBusy(false);
-        }}
-      >
-        {busy ? "מעלה…" : "העלאה"}
-      </button>
-      <p class="fine">העלו רק חומר שמותר לכם לשתף: סיכומים שכתבתם, ומאמרים שפורסמו בגישה פתוחה או ברשות המחבר.</p>
-    </Dialog>
-  );
-}
-
 // ---------- the media strip ----------
 function MediaStrip({ onAdd }: { onAdd: () => void }) {
   const items = visibleMedia.value;
@@ -516,6 +337,12 @@ function MediaStrip({ onAdd }: { onAdd: () => void }) {
 }
 
 function StripItem({ p }: { p: Post }) {
+  if (p.kind === "ref" || !p.media)
+    return (
+      <figure class="strip-item strip-ref">
+        <RefCard p={p} />
+      </figure>
+    );
   const open = () => (sheet.value = { type: "viewer", post: p });
   let host = "";
   try {
@@ -605,92 +432,6 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
       </button>
       <p class="fine">כל תמונה עוברת בדיקה אוטומטית לפני הפרסום.</p>
     </Dialog>
-  );
-}
-
-// ---------- campus picker ----------
-function Picker() {
-  const t = tree.value;
-  const cur = place.value;
-  const [inst, setInst] = useState(cur?.inst || "");
-  const [faculty, setFaculty] = useState(cur ? unslug(cur.faculty) : "");
-  const [year, setYear] = useState(cur?.year || 1);
-  useEffect(() => void loadTree(), []);
-  const i = t?.institutions.find((x) => x.id === inst);
-  const ok = !!inst && slug(faculty).length >= 2;
-  return (
-    <Dialog title="הפקולטה שלכם" onClose={() => (picker.value = false)} closable={!!cur}>
-      {!t ? (
-        <div class="muted pad">טוען…</div>
-      ) : (
-        <>
-          <label class="field">
-            <span>מוסד</span>
-            <select class="input" value={inst} onChange={(e) => (setInst(e.currentTarget.value), setFaculty(""))}>
-              <option value="">בחרו…</option>
-              {t.institutions.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {i && (
-            <div class="field">
-              <span>פקולטה</span>
-              <div class="chips">
-                {i.faculties.map((f) => (
-                  <button key={f} class={`chip ${faculty === f ? "on" : ""}`} onClick={() => setFaculty(f)}>
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <input class="input" dir="auto" value={faculty} maxLength={60} onInput={(e) => setFaculty(e.currentTarget.value)} placeholder="או כתבו פקולטה אחרת" />
-            </div>
-          )}
-          <div class="field">
-            <span>שנה</span>
-            <div class="chips">
-              {t.years.map((y) => (
-                <button key={y} class={`chip ${year === y ? "on" : ""}`} onClick={() => setYear(y)}>
-                  שנה {YEAR_HE[y]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button class="btn btn-primary btn-block" disabled={!ok} onClick={() => openPlace({ inst, faculty: slug(faculty), year })}>
-            לדף הפקולטה
-          </button>
-          <p class="fine">הדף של הפקולטה הוא כתובת קבועה. הכוכב שומר אותו במעקב, כדי שייפתח בלחיצה מכל מקום.</p>
-        </>
-      )}
-    </Dialog>
-  );
-}
-
-function Dialog({ title, children, onClose, closable = true }: { title: string; children: any; onClose: () => void; closable?: boolean }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === "Escape" && closable && onClose();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [closable]);
-  return (
-    <div class="scrim mc-scrim" onClick={(e) => e.target === e.currentTarget && closable && onClose()}>
-      <div class="sheet" role="dialog" aria-modal="true" aria-label={title}>
-        <div class="sheet-head">
-          <span class="sheet-spacer" />
-          <h2 class="sheet-title">{title}</h2>
-          {closable ? (
-            <button class="icon-btn" onClick={onClose} aria-label="סגירה">
-              <X />
-            </button>
-          ) : (
-            <span class="sheet-spacer" />
-          )}
-        </div>
-        <div class="sheet-body">{children}</div>
-      </div>
-    </div>
   );
 }
 

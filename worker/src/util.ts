@@ -18,7 +18,7 @@ export const now = () => Date.now();
 
 export const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Image-Type",
   "Access-Control-Max-Age": "86400",
 };
