@@ -33,7 +33,7 @@ export async function debugPage(req: Request, env: Env, url: URL): Promise<Respo
     }
   }
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><meta name="color-scheme" content="light"><title>אבחון מסירה · AddMedia</title>
+<meta name="robots" content="noindex"><meta name="color-scheme" content="light"><title>אבחון מסירה · InThePage</title>
 <style>
 body{margin:0;padding:14px;background:#f6f5f8;color:#14161a;font:13px/1.4 -apple-system,BlinkMacSystemFont,Arial,sans-serif}
 h1{font-size:17px;margin:0 0 8px} h2{font-size:14px;margin:12px 0 4px}

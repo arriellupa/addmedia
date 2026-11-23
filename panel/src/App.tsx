@@ -4,7 +4,7 @@ import { findUrl, host } from "./host";
 import { GoBar } from "./ui/GoBar";
 import { Cap, Copy, Lock, Refresh } from "./icons";
 import { bundle, load, loadError, loading, page, presence, setPage, tab } from "./state";
-import { BrandMark, CenterAd, Skeleton, Sponsored, Toast } from "./ui/Bits";
+import { BrandMark, CenterAd, OwnerCard, Skeleton, Sponsored, Toast } from "./ui/Bits";
 import { OpeningCard } from "./ui/Card";
 import { ChatView } from "./ui/Chat";
 import { CommentsView } from "./ui/Comments";
@@ -39,6 +39,7 @@ export function App() {
             <>
               <Tabs />
               <div class="stack">
+                <OwnerCard />
                 <Intro />
                 <OpeningCard />
               </div>
@@ -92,7 +93,7 @@ function Disabled({ reason }: { reason: string }) {
       <span class="state-ic">
         <Lock size={22} />
       </span>
-      <div class="empty-title">AddMedia כבוי בדף הזה</div>
+      <div class="empty-title">InThePage כבוי בדף הזה</div>
       <div class="empty-sub">{text[reason] || text.domain}</div>
     </div>
   );
@@ -123,7 +124,7 @@ function NoPage() {
     <div class="state">
       <BrandMark />
       <div class="empty-title">על איזה דף מדברים?</div>
-      <div class="empty-sub">הקלידו כתובת או חפשו בגוגל: הדף נפתח בחלון קריאה לצד AddMedia, והשיחה עליו כאן.</div>
+      <div class="empty-sub">הקלידו כתובת או חפשו בגוגל: הדף נפתח בחלון קריאה לצד InThePage, והשיחה עליו כאן.</div>
       <div class="demo-url">
         <GoBar autoFocus />
       </div>
@@ -136,7 +137,7 @@ function NoPage() {
       <a class="btn btn-secondary paste-btn" href="/media/campus">
         <Cap size={18} /> לגרסת הסטודנטים
       </a>
-      <a class="fine" href="/mobile/">איך מוסיפים כפתור AddMedia לדפדפן בטלפון</a>
+      <a class="fine" href="/mobile/">איך מוסיפים כפתור InThePage לדפדפן בטלפון</a>
     </div>
   );
 }

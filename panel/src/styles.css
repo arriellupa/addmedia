@@ -1,4 +1,4 @@
-/* AddMedia panel — "Velvet" design system. RTL-first, logical properties only.
+/* InThePage panel — "Velvet" design system. RTL-first, logical properties only.
    Accent (raspberry) = primary action, own messages, selection, focus, "המדיה שלי".
    Brass = sponsored only. Green = live only. */
 @layer tokens, base, components, utilities;
@@ -229,6 +229,16 @@
   .badge { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding-inline: 7px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
   .badge-sponsored { background: var(--c-sponsor-tint); color: var(--c-sponsor); }
   .badge-pin { background: var(--c-accent-tint); color: var(--c-accent-text); }
+  /* the site's owner: a verified badge on their posts, and the card on top of the room */
+  .badge-owner { background: #ECE6FF; color: #4A20D6; }
+  :root[data-theme="dark"] .badge-owner { background: #2A2350; color: #AE98FF; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .badge-owner { background: #2A2350; color: #AE98FF; } }
+  .owner-card { margin: 0 var(--gutter) 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--c-surface, #fff); box-shadow: inset 0 3px 0 #5B2EF0, 0 0 0 1px color-mix(in srgb, #5B2EF0 18%, transparent); }
+  .owner-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .owner-note { font-size: var(--fs-caption); color: var(--c-text-3); }
+  .owner-welcome { margin: 8px 0 0; font-size: var(--fs-body, 15px); line-height: 1.55; color: var(--c-text-1); white-space: pre-wrap; unicode-bidi: plaintext; }
+  .owner-manage { display: inline-block; margin-top: 6px; font-size: var(--fs-caption); font-weight: 600; color: #5124E6; }
+  .mm-owner { margin-top: 14px; }
 
   /* ---------- main tabs (segmented) ---------- */
   .tabs-wrap { flex: none; padding: 0 var(--gutter) 8px; }

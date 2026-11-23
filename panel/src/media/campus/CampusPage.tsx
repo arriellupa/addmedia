@@ -161,7 +161,7 @@ export function Course({ radar, media }: { radar: any; media?: any }) {
             </>
           )}
           <footer class="cp-foot">
-            <span>הקמפוס של AddMedia · חומרים שסטודנטים כתבו, ומאמרים בקישור למקור.</span>
+            <span>הקמפוס של InThePage · חומרים שסטודנטים כתבו, ומאמרים בקישור למקור.</span>
             <button class="link" onClick={() => (takedownOpen.value = {})}>
               בקשת הסרה למרצים ומוסדות
             </button>

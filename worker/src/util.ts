@@ -8,6 +8,8 @@ export interface Env {
   FROM_EMAIL: string;
   TEST_PURCHASES: string;
   DEV_MODE: string;
+  /** the store ids of the extension (comma separated): only they may frame the panel */
+  EXT_IDS?: string;
   ID_SECRET?: string;
   ADMIN_TOKEN?: string;
   RESEND_API_KEY?: string;

@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>התקנת AddMedia ל-Chrome</title>
-<meta name="description" content="התקנת התוסף של AddMedia לדפדפן Chrome.">
+<title>התקנת InThePage ל-Chrome</title>
+<meta name="description" content="התקנת התוסף של InThePage לדפדפן Chrome.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/site.css">
 </head>
 <body>
 <header class="top"><div class="top-in">
-  <a class="logo" href="/"><img src="/favicon.svg" alt="">AddMedia</a>
+  <a class="logo" href="/"><img src="/favicon.svg" alt="">InThePage</a>
   <nav class="nav">
     <a href="/mobile/">בטלפון</a>
     <a href="/rules/">כללי הקהילה</a>
@@ -23,27 +23,36 @@
 
 <main class="wrap">
   <h1>התקנה ל-Chrome</h1>
-  <p class="lead">התוסף יופיע בקרוב בחנות של Chrome. עד אז אפשר להתקין אותו ידנית, בשלוש דקות.</p>
-  <h2>התקנה ידנית</h2>
+  <p class="lead">התוסף נמצא בחנות של Chrome. לחיצה אחת, והוא מותקן ומתעדכן לבד.</p>
+  <p><a class="btn btn-primary" href="https://chromewebstore.google.com/detail/kkeefmpcopkjpljhehakkapnehhbbkpb" rel="noopener">הוספה ל-Chrome</a></p>
   <ol>
-    <li>הורידו את קובץ התוסף <a href="/addmedia-extension.zip">addmedia-extension.zip</a> ופתחו אותו לתיקייה.</li>
-    <li>היכנסו לכתובת <code>chrome://extensions</code> והפעילו את "מצב מפתח" בפינה העליונה.</li>
-    <li>לחצו על "טעינת תוסף לא ארוז" ובחרו את התיקייה.</li>
-    <li>הצמידו את סמל AddMedia לסרגל הכלים. לחיצה עליו פותחת את הפאנל בצד הדף.</li>
+    <li>לחצו על "הוספה ל-Chrome" בחנות, ואשרו.</li>
+    <li>הצמידו את סמל InThePage לסרגל הכלים (סמל הפאזל שליד שורת הכתובת).</li>
+    <li>גלשו לכל דף ולחצו על הסמל.</li>
   </ol>
-  <h2>שני מצבי תצוגה</h2>
-  <p><strong>פאנל צד</strong> — נצמד לצד החלון. <strong>מסך מפוצל</strong> — הדף בחלק העליון של המסך ו-AddMedia בחלק התחתון; לחיצה על סמל הפיצול בפאנל, או Alt+Shift+S.</p>
+  <h2>שלושה מצבי תצוגה</h2>
+  <p><strong>פאנל צד</strong> — נצמד לצד החלון. <strong>מסך מפוצל</strong> — הדף בחלק העליון של המסך ו-InThePage בחלק התחתון; לחיצה על סמל הפיצול בפאנל, או Alt+Shift+S. <strong>דף מלא</strong> — InThePage בלשונית משלו, בכפתור שבראש הפאנל. בין פאנל הצד למסך המפוצל, הבחירה האחרונה נשמרת, ולחיצה על הסמל פותחת אותה שוב.</p>
+  <p id="refnote" class="small" hidden></p>
+  <script>
+  // a site owner's link (/r/<code>) lands here: keep the code on this site for 60 days, so a sign-up in the panel counts for them
+  (function () {
+    var q = new URLSearchParams(location.search), c = q.get("ref"), s = q.get("site");
+    if (!c || !/^[a-z0-9]{6,16}$/.test(c)) return;
+    try { localStorage.setItem("itp_ref", JSON.stringify({ code: c, at: Date.now() })); } catch (e) {}
+    if (s) { var n = document.getElementById("refnote"); n.textContent = "הגעתם מהאתר " + s + ". אחרי ההתקנה, החדר של האתר מחכה לכם."; n.hidden = false; }
+  })();
+  </script>
 </main>
 
 <footer class="foot"><div class="foot-in">
-  <span>© 2026 AddMedia</span>
+  <span>© 2026 InThePage</span>
   <a href="/terms/">תנאי שימוש</a>
   <a href="/privacy/">מדיניות פרטיות</a>
   <a href="/rules/">כללי הקהילה</a>
   <a href="/accessibility/">הצהרת נגישות</a>
   <a href="/publishers/">לבעלי אתרים</a>
   <a href="/contact/">יצירת קשר ובקשת הסרה</a>
-  <span>AddMedia אינה קשורה לאתרים שלצידם היא מוצגת.</span>
+  <span>InThePage אינה קשורה לאתרים שלצידם היא מוצגת.</span>
 </div></footer>
 </body>
 </html>

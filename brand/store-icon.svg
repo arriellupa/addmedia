@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Chrome Web Store icon: 96×96 artwork inside a 128×128 canvas, 16 px transparent padding -->
+  <g transform="translate(16 16) scale(0.75)">
+    <rect x="0" y="0" width="128" height="128" rx="34" fill="#5B2EF0"/>
+    <path d="M34 20h40l20 20v60a7 7 0 0 1-7 7H34a7 7 0 0 1-7-7V27a7 7 0 0 1 7-7z" fill="#fff"/>
+    <path d="M74 20v13a7 7 0 0 0 7 7h13z" fill="#D9CFFF"/>
+    <rect x="39" y="48" width="34" height="7" rx="3.5" fill="#D9CFFF"/>
+    <rect x="39" y="62" width="24" height="7" rx="3.5" fill="#D9CFFF"/>
+    <path d="M88 70a22 22 0 1 1-12.5 40L64 114l4-11.6A22 22 0 0 1 88 70z" fill="#FF7A2F" stroke="#5B2EF0" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="80" cy="92" r="3.4" fill="#fff"/><circle cx="89" cy="92" r="3.4" fill="#fff"/><circle cx="98" cy="92" r="3.4" fill="#fff"/>
+  </g>
+</svg>

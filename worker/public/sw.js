@@ -1,4 +1,4 @@
-// AddMedia service worker: makes the panel installable (home screen, Android share sheet).
+// InThePage service worker: makes the panel installable (home screen, Android share sheet).
 // Network first; when offline, the last panel shell is shown instead of the browser's error page.
 const SHELL = "am-shell-v1";
 self.addEventListener("install", (e) => {

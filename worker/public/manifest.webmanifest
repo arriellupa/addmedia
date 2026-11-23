@@ -1,6 +1,6 @@
 {
-  "name": "AddMedia",
-  "short_name": "AddMedia",
+  "name": "InThePage",
+  "short_name": "InThePage",
   "description": "שיחה חיה, תגובות ומדיה על כל דף — עם מי שקורא אותו עכשיו.",
   "id": "/panel/",
   "start_url": "/panel/",
@@ -8,8 +8,8 @@
   "display": "standalone",
   "dir": "rtl",
   "lang": "he",
-  "background_color": "#f4f3f6",
-  "theme_color": "#a3195b",
+  "background_color": "#F6F4FF",
+  "theme_color": "#5B2EF0",
   "icons": [
     { "src": "/icons/192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

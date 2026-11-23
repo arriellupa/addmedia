@@ -2,6 +2,7 @@
 import { applyTakedown, deleteDoc, deleteEvent, grantPlan, listTakedowns, restoreTakedown } from "./campus";
 import { invalidateTerms } from "./moderation";
 import { getSettings, putSettings } from "./settings";
+import { handleAdminOwners } from "./owners";
 import { Env, clampStr, fail, json, now, randomId, readJson } from "./util";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
@@ -23,6 +24,7 @@ export async function handleAdmin(req: Request, env: Env, url: URL): Promise<Res
   const [res, id] = parts;
   const m = req.method;
 
+  if (res === "owners" || res === "claims") return await handleAdminOwners(req, env, parts, (e) => log(env, e));
   if (res === "settings" && m === "GET") return json({ settings: await getSettings(env) });
   if (res === "settings" && m === "POST") {
     const b = await readJson(req);

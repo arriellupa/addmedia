@@ -4,6 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "routes": [
+    { "pattern": "inthepage.com", "custom_domain": true },
+    { "pattern": "www.inthepage.com", "custom_domain": true },
     { "pattern": "addmedia.noaplate.com", "custom_domain": true },
     { "pattern": "addstudent.noaplate.com", "custom_domain": true },
     { "pattern": "addstudent.com", "custom_domain": true },
@@ -30,8 +32,9 @@
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "addmedia-media" }],
   "vars": {
-    "APP_ORIGIN": "https://addmedia.noaplate.com",
-    "FROM_EMAIL": "AddMedia <no-reply@noaplate.com>",
+    "APP_ORIGIN": "https://inthepage.com",
+    "FROM_EMAIL": "InThePage <no-reply@noaplate.com>",
+    "EXT_IDS": "kkeefmpcopkjpljhehakkapnehhbbkpb",
     "TEST_PURCHASES": "true",
     "DEV_MODE": "false"
   },

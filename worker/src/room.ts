@@ -265,8 +265,9 @@ export class PageRoom extends DurableObject<Env> {
     return { found: true, hidden: false, uid: f.row.user_id ?? f.row.uid };
   }
 
-  /** visible | removed | hold ("hold": hidden while a takedown notice is reviewed; the media stays until a final removal) */
-  async setStatus(type: "post" | "chat", id: string, status: "visible" | "removed" | "hold") {
+  /** visible | removed | hold | owner_hidden ("hold": hidden while a takedown notice is reviewed; "owner_hidden": hidden by the site's owner.
+   *  In both the media stays until a final removal) */
+  async setStatus(type: "post" | "chat", id: string, status: "visible" | "removed" | "hold" | "owner_hidden") {
     const f = this.findItem(type, id);
     if (!f) return { ok: false };
     this.sql.exec(`UPDATE ${f.table} SET status=? WHERE id=?`, status, id);

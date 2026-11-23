@@ -1,4 +1,5 @@
 import { DAY, Env, clampStr, fail, hmac, idSecret, isTrue, json, now, randomId, sha256 } from "./util";
+import { recordSignup } from "./owners";
 
 export interface User {
   id: string;
@@ -136,7 +137,7 @@ export async function createSession(env: Env, user: User, req: Request): Promise
       await env.DB.prepare("DELETE FROM sessions WHERE user_id=? AND device_id=?").bind(user.id, old.device_id).run();
       evicted = old.device_name || old.device_id;
       if (user.email) {
-        await sendMail(env, user.email, "כניסה ממכשיר חדש ל-AddMedia",
+        await sendMail(env, user.email, "כניסה ממכשיר חדש ל-InThePage",
           `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:16px;color:#14161a"><p>נכנסו לחשבון שלך ממכשיר חדש (${dev.name}).</p><p>החשבון מוגבל לשני מכשירים, ולכן המכשיר הישן יותר (${evicted}) נותק.</p><p style="color:#6b7280">אם זה לא היית את/ה, החליפו סיסמה עכשיו. החשבון אישי: שיתוף סיסמה או מכשיר עם אחר מבטל את המנוי ללא החזר.</p></div>`,
           `נכנסו לחשבון שלך ממכשיר חדש (${dev.name}). המכשיר הישן יותר (${evicted}) נותק. אם זה לא היית את/ה, החליפו סיסמה.`);
       }
@@ -259,13 +260,13 @@ export async function issueCode(env: Env, email: string, prefix = "e|", purpose 
 
   if (env.RESEND_API_KEY) {
     const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:16px;color:#14161a">
-      <p>${purpose} ל-AddMedia:</p>
+      <p>${purpose} ל-InThePage:</p>
       <p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">${code}</p>
       <p style="color:#6b7280">הקוד בתוקף ל-10 דקות. אם לא ביקשת אותו, אפשר להתעלם מההודעה.</p></div>`;
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: env.FROM_EMAIL, to: [email], subject: `${purpose}: ${code}`, html, text: `${purpose} ל-AddMedia: ${code}` }),
+      body: JSON.stringify({ from: env.FROM_EMAIL, to: [email], subject: `${purpose}: ${code}`, html, text: `${purpose} ל-InThePage: ${code}` }),
     });
     if (!r.ok) {
       const detail = await r.text().catch(() => "");
@@ -315,6 +316,7 @@ export async function verifyAuth(env: Env, req: Request, body: any): Promise<Res
     const id = "u_" + randomId(12);
     const name = "גולש/ת " + String(1000 + (crypto.getRandomValues(new Uint16Array(1))[0] % 9000));
     await env.DB.prepare("INSERT INTO users (id, email_hash, display_name, created_at) VALUES (?,?,?,?)").bind(id, emailHash, name, now()).run();
+    await recordSignup(env, id, body.ref).catch(() => {}); // came through a site owner's link or badge
     user = (await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first<User>())!;
   }
   if (user.banned) return fail(403, "banned", "החשבון הושעה בשל הפרת כללי הקהילה.");

@@ -1,6 +1,6 @@
 import type { PageCtx } from "./host";
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE as string) || (location.protocol.startsWith("http") ? location.origin : "https://addmedia.noaplate.com");
+export const API_BASE: string = (import.meta.env.VITE_API_BASE as string) || (location.protocol.startsWith("http") ? location.origin : "https://inthepage.com");
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public extra: any = {}) {
@@ -24,6 +24,15 @@ export function deviceId(): string {
   } catch {
     return "";
   }
+}
+
+/** a site owner's referral code, kept by the install page (/get/?ref=…) on this origin for 60 days */
+function refBody(): { ref?: string } {
+  try {
+    const r = JSON.parse(localStorage.getItem("itp_ref") || "null");
+    if (r && typeof r.code === "string" && Date.now() - Number(r.at) < 60 * 864e5) return { ref: r.code };
+  } catch {}
+  return {};
 }
 
 async function call<T = any>(path: string, opts: { method?: string; body?: unknown; raw?: Blob; type?: string } = {}): Promise<T> {
@@ -120,6 +129,8 @@ export interface Bundle {
   ads: { top: Ad | null; feed: Ad[] };
   me: Me | null;
   settings?: PublicSettings;
+  /** the site's verified owner, when there is one: the room is managed by them */
+  owner?: { uid: string; welcome: string | null; since: number; isMe: boolean } | null;
 }
 export interface PageCard { summary: string[]; questions: string[]; lang: string; ts: number }
 export interface CenterAd {
@@ -256,7 +267,10 @@ export const api = {
   report: (roomId: string, itemType: "post" | "chat", itemId: string, reason: string, details?: string) =>
     call<{ ok: boolean; hidden: boolean; sla: string }>("/v1/report", { method: "POST", body: { roomId, itemType, itemId, reason, details } }),
   authStart: (email: string) => call<{ sent: boolean; devCode?: string }>("/v1/auth/start", { method: "POST", body: { email } }),
-  authVerify: (email: string, code: string, password?: string) => call<{ token: string; user: Me }>("/v1/auth/verify", { method: "POST", body: { email, code, ...(password ? { password } : {}) } }),
+  authVerify: (email: string, code: string, password?: string) => call<{ token: string; user: Me }>("/v1/auth/verify", { method: "POST", body: { email, code, ...(password ? { password } : {}), ...refBody() } }),
+  /** the site's owner hides (or brings back) an item in one of the site's rooms */
+  ownerItem: (site: string, roomId: string, itemType: "post" | "chat", itemId: string, restore = false) =>
+    call<{ ok: boolean }>(`/v1/owner/sites/${encodeURIComponent(site)}/items`, { method: "POST", body: { roomId, itemType, itemId, restore } }),
   logout: () => call("/v1/auth/logout", { method: "POST" }),
   // ---- AddStudent: password sign-in and devices (contract 2026-10-29 18:44) ----
   /** sign-up: the email code follows; `authVerify(email, code, password)` completes it */

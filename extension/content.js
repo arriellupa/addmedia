@@ -1,4 +1,4 @@
-// Reads page identity for AddMedia. Never modifies the page.
+// Reads page identity for InThePage. Never modifies the page.
 (() => {
   const abs = (href) => {
     try {
@@ -10,7 +10,7 @@
   const meta = (sel) => document.querySelector(sel)?.getAttribute("content") || null;
 
   function read() {
-    const optout = (meta('meta[name="addmedia"]') || "").toLowerCase();
+    const optout = (meta('meta[name="inthepage"]') || meta('meta[name="addmedia"]') || "").toLowerCase();
     const icon =
       document.querySelector('link[rel~="icon"][sizes="32x32"]') ||
       document.querySelector('link[rel~="icon"]') ||

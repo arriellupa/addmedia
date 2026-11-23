@@ -84,6 +84,105 @@ function extensionHost(): Host {
   return h;
 }
 
+/**
+ * The panel inside the extension's shell (v1.1+): the extension page frames this page from the server and relays
+ * a closed set of messages. Only the parent frame is listened to, and the server allows only the extension
+ * to frame this page (frame-ancestors), so the parent is the shell.
+ */
+function frameHost(): Host {
+  const q = new URLSearchParams(location.search);
+  const parentOrigin: string = (location as any).ancestorOrigins?.[0] || "";
+  const trusted = /^chrome-extension:\/\/[a-p]{32}$/.test(parentOrigin);
+  const send = (m: unknown) => {
+    if (trusted) window.parent.postMessage(m, parentOrigin);
+  };
+  let seq = 0;
+  const waiting = new Map<number, (t: string) => void>();
+  // the first reads wait for the shell's hello, which may carry the sign-in v1.0 kept in the extension
+  let initDone: () => void = () => {};
+  const inited = new Promise<void>((res) => {
+    initDone = res;
+    setTimeout(res, 1500);
+  });
+  const store = {
+    get(k: string) {
+      try {
+        return localStorage.getItem(k);
+      } catch {
+        return null;
+      }
+    },
+    set(k: string, v: string | null) {
+      try {
+        if (v === null) localStorage.removeItem(k);
+        else localStorage.setItem(k, v);
+      } catch {}
+    },
+  };
+  // listen and say hello at once, before the app asks for anything: the hello brings the sign-in hand-over
+  let onPageCb: ((p: PageCtx | null) => void) | null = null;
+  let pending: { page: PageCtx | null } | null = null;
+  window.addEventListener("message", (e) => {
+    if (!trusted || e.source !== window.parent || e.origin !== parentOrigin) return;
+    const m: any = e.data;
+    if (!m || typeof m !== "object") return;
+    if (m.t === "init") {
+      const mg = m.migrate && typeof m.migrate === "object" ? m.migrate : {};
+      if (typeof mg.am_token === "string" && !store.get("am_token")) {
+        store.set("am_token", mg.am_token);
+        if (typeof mg.am_device === "string") store.set("am_device", mg.am_device); // the token belongs to that device
+        if (typeof mg.am_intro === "string") store.set("am_intro", mg.am_intro);
+      }
+      if (mg.am_token) send({ t: "migrated" });
+      initDone();
+    } else if (m.t === "page") {
+      const pg = m.page && typeof m.page.url === "string" ? (m.page as PageCtx) : null;
+      if (onPageCb) onPageCb(pg);
+      else pending = { page: pg };
+    } else if (m.t === "pageText" && Number.isInteger(m.id)) waiting.get(m.id)?.(String(m.text || ""));
+  });
+  send({ t: "ready", proto: 1 });
+  const h: Host = {
+    kind: "extension",
+    layout: q.get("mode") === "split" ? "split" : "side",
+    start(onPage) {
+      onPageCb = onPage;
+      if (pending) onPage(pending.page);
+      pending = null;
+    },
+    async get(k) {
+      await inited;
+      return store.get(k);
+    },
+    async set(k, v) {
+      store.set(k, v);
+    },
+    open(url) {
+      send({ t: "open", url });
+    },
+    haptic() {},
+    setLayout(m) {
+      send({ t: "layout", mode: m });
+    },
+    badge(n) {
+      send({ t: "badge", n });
+    },
+    pageText() {
+      return new Promise<string>((res) => {
+        const id = ++seq;
+        const done = (t: string) => {
+          waiting.delete(id);
+          res(t);
+        };
+        waiting.set(id, done);
+        send({ t: "pageText", id });
+        setTimeout(() => done(""), 4000);
+      });
+    },
+  };
+  return h;
+}
+
 function mobileHost(): Host {
   const rn = (window as any).ReactNativeWebView;
   const send = (o: unknown) => rn.postMessage(JSON.stringify(o));
@@ -180,9 +279,13 @@ function cleanTitle(title: string | null, url: string): string {
   return /^https?:\/\//.test(t) ? "" : t.slice(0, 200);
 }
 
+const inShell = window.parent !== window && new URLSearchParams(location.search).has("shell");
+
 export const host: Host =
   __HOST__ === "extension" || (typeof chrome !== "undefined" && chrome?.runtime?.id)
     ? extensionHost()
-    : (window as any).ReactNativeWebView
-      ? mobileHost()
-      : webHost();
+    : inShell
+      ? frameHost()
+      : (window as any).ReactNativeWebView
+        ? mobileHost()
+        : webHost();

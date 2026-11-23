@@ -1,4 +1,4 @@
-// AddMedia API — Cloudflare Worker entry
+// InThePage API — Cloudflare Worker entry
 import { handleAdmin, modLog } from "./admin";
 import { User, changePassword, dropDevice, forgotPassword, getUser, listDevices, loginAuth, logout, publicUser, registerAuth, resetPassword, startAuth, tokenFrom, verifyAuth, deviceOf, ipHashOf } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
@@ -6,6 +6,7 @@ import { CAMPUS_HOST, PLAN_MSG, STUDENT_MSG, campusTree, coverage, createDoc, cr
 import { askPage, getCard, makeCard } from "./card";
 import { debugPage, debugVia } from "./debug";
 import { getSettings, publicSettings } from "./settings";
+import { badgeSvg, handleOwner, ownerOf, ownerPublic, referralRedirect } from "./owners";
 import { checkImage, checkPost, checkText } from "./moderation";
 import type { RoomMeta } from "./room";
 import { CORS, DAY, Env, TERMS_VERSION, clampStr, fail, idSecret, isTrue, json, now, randomId, readJson } from "./util";
@@ -14,7 +15,7 @@ export { PageRoom } from "./room";
 export { Directory } from "./directory";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-29.4";
+const VERSION = "2026-11-23.1";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 const STUDENT_HOSTS = new Set(["addstudent.com", "www.addstudent.com", "addstudent.noaplate.com"]);
@@ -29,7 +30,7 @@ const PRODUCTS = [
 ] as const;
 
 // ---------- domain rules (cached per isolate) ----------
-type Rule = { no_comments: number; no_ads: number; disabled: number };
+type Rule = { no_comments: number; no_ads: number; disabled: number; no_media?: number };
 let rulesCache: { at: number; map: Map<string, Rule> } | null = null;
 async function rulesFor(env: Env, c: Canon): Promise<Rule> {
   if (!rulesCache || now() - rulesCache.at > 5 * 60_000) {
@@ -47,6 +48,10 @@ async function rulesFor(env: Env, c: Canon): Promise<Rule> {
       out.disabled ||= r.disabled;
     }
   }
+  // the site's owner may close talkbacks or image uploads on the site (the operator's rules above still win)
+  const o = await ownerOf(env, c.site);
+  if (o?.no_comments) out.no_comments = 1;
+  if (o?.no_media) out.no_media = 1;
   return out;
 }
 
@@ -131,7 +136,7 @@ async function requireUser(env: Env, req: Request, url: URL): Promise<User | Res
   return u;
 }
 
-/** the students' product needs a password on the account (a code-only AddMedia account is asked to set one) */
+/** the students' product needs a password on the account (a code-only InThePage account is asked to set one) */
 const needsPassword = (u: User) => !u.pass_hash;
 
 const isNewUser = (u: User) => now() - u.created_at < DAY;
@@ -207,6 +212,7 @@ async function panel(req: Request, env: Env, url: URL, ctx: ExecutionContext): P
     other: { scope: r.scope === "page" ? "site" : "page", presence: side.presence, postCount: side.postCount, chat: side.chat.slice(-3) },
     ads,
     me: viewer ? publicUser(viewer) : null,
+    owner: ownerPublic(await ownerOf(env, r.c.site), viewer?.id),
   };
   const res = json(body, 200, { "Cache-Control": "public, max-age=0, s-maxage=10" });
   if (!viewer) ctx.waitUntil(caches.default.put(cacheKey, res.clone()));
@@ -254,7 +260,7 @@ async function createPost(req: Request, env: Env, url: URL): Promise<Response> {
     return fail(422, v.code, v.message);
   }
   const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "text", body: text, parentId: clampStr(b.parentId, 40) || null, meta: r.meta, ttlDays: (await getSettings(env)).retentionDays });
-  await env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at) VALUES (?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "text", now(), post.expiresAt).run();
+  await env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at, site) VALUES (?,?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "text", now(), post.expiresAt, r.c.site).run();
   return json({ post });
 }
 
@@ -272,6 +278,7 @@ async function uploadMedia(req: Request, env: Env, url: URL): Promise<Response> 
   const r = await resolve(env, { url: url.searchParams.get("url"), canonical: url.searchParams.get("canonical"), title: url.searchParams.get("title"), scope: url.searchParams.get("scope") });
   if (r instanceof Response) return r;
   if (!commentsAllowed(r)) return fail(403, "disabled", "פרסום כבוי בדף הזה.");
+  if (r.rule.no_media) return fail(403, "no_media", "בעל האתר סגר את העלאת התמונות באתר הזה.");
   const settings = await getSettings(env);
   // the first N images are free (operator setting); after that, credits
   const used = await env.DB.prepare("SELECT COUNT(*) n FROM content_index WHERE user_id=? AND kind='image'").bind(u.id).first<{ n: number }>();
@@ -321,7 +328,7 @@ async function uploadMedia(req: Request, env: Env, url: URL): Promise<Response> 
     }
   }
   const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "image", body: caption, mediaKey: key, meta: r.meta, status: review ? "review" : "visible", link, ttlDays: settings.retentionDays });
-  await env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at) VALUES (?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "image", now(), post.expiresAt).run();
+  await env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at, site) VALUES (?,?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "image", now(), post.expiresAt, r.c.site).run();
   return json({ post, review, credits: free ? u.credits_media : u.credits_media - 1, free });
 }
 
@@ -357,7 +364,7 @@ async function attach(req: Request, env: Env, url: URL): Promise<Response> {
     const post = await room(env, r.roomId).addPost({ uid: u.id, name: u.display_name, kind: "ref", body: m.ref.title || "", meta: r.meta, ref: m.ref, ttlDays: (await getSettings(env)).retentionDays });
     await Promise.all([
       recordRef(env, { type, itemId: id, srcRoom: m.srcRoom, roomId: r.roomId, postId: post.id, uid: u.id }),
-      env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at) VALUES (?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "ref", now(), post.expiresAt).run(),
+      env.DB.prepare("INSERT INTO content_index (item_id, user_id, room_id, kind, created_at, expires_at, site) VALUES (?,?,?,?,?,?,?)").bind(post.id, u.id, r.roomId, "ref", now(), post.expiresAt, r.c.site).run(),
     ]);
     posts.push(post);
   }
@@ -527,11 +534,41 @@ async function serveMedia(env: Env, key: string): Promise<Response> {
   return new Response(obj.body, { headers: h });
 }
 
+/** the room of a whole site (its home page), for the owner's numbers and the badge */
+async function siteRoomId(env: Env, domain: string): Promise<string> {
+  const c = canonicalize("https://" + domain + "/");
+  if (!c) return "";
+  return (await roomIds(idSecret(env), c)).siteId;
+}
+const ownerDeps = (env: Env) => ({ room: (id: string) => room(env, id) as any, siteRoomId: (d: string) => siteRoomId(env, d) });
+
+/** who may frame the panel: the site itself and the extension's shell (v1.1+). Without ids (or in dev) any extension. */
+function frameAncestors(env: Env): string {
+  const ids = String(env.EXT_IDS || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => /^[a-p]{32}$/.test(x));
+  const ext = ids.length && !isTrue(env.DEV_MODE) ? ids.map((id) => `chrome-extension://${id}`).join(" ") : "chrome-extension:";
+  return `frame-ancestors 'self' ${ext}`;
+}
+
+/** the panel's pages (/panel/…) carry the frame rule; the rest of the site is not framed by anyone else */
+async function withFrameRule(r: Response, env: Env, panel: boolean): Promise<Response> {
+  const ct = r.headers.get("Content-Type") || "";
+  if (!ct.includes("text/html")) return r;
+  const h = new Headers(r.headers);
+  h.set("Content-Security-Policy", panel ? frameAncestors(env) : "frame-ancestors 'self'");
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+}
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const p = url.pathname;
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    if (url.hostname === "www.inthepage.com" && (req.method === "GET" || req.method === "HEAD")) {
+      return Response.redirect("https://inthepage.com" + p + url.search, 301);
+    }
     try {
       if (p === "/v1/health") return json({ ok: true, at: now(), v: VERSION, terms: TERMS_VERSION });
       if (p === "/v1/debug") return await debugPage(req, env, url);
@@ -727,6 +764,13 @@ export default {
       }
       if (p === "/v1/store/checkout" && req.method === "POST") return await checkout(req, env, url);
       if (p.startsWith("/v1/admin")) return await handleAdmin(req, env, url);
+      if (p === "/v1/owner" || p.startsWith("/v1/owner/")) {
+        const u = await requireUser(env, req, url);
+        if (u instanceof Response) return u;
+        return await handleOwner(req, env, url, u, ownerDeps(env));
+      }
+      const bm = p.match(/^\/v1\/badge\/([A-Za-z0-9]{6,16})\.svg$/);
+      if (bm && req.method === "GET") return await badgeSvg(env, bm[1], ownerDeps(env));
       const ad = p.match(/^\/v1\/ads\/([A-Za-z0-9_-]{4,40})\/click$/);
       if (ad) {
         const row = await env.DB.prepare("SELECT url FROM ads WHERE id=? AND active=1").bind(ad[1]).first<{ url: string }>();
@@ -743,6 +787,10 @@ export default {
       const rm = p.match(/^\/v1\/room\/([^/]+)\/(.+)$/);
       if (rm) return await roomAction(req, env, url, rm[1], rm[2].split("/"));
       if (p.startsWith("/m/")) return await serveMedia(env, decodeURIComponent(p.slice(3)));
+      const rr = p.match(/^\/r\/([A-Za-z0-9]{6,16})\/?$/);
+      if (rr && req.method === "GET") return await referralRedirect(env, rr[1], ctx);
+      // the owners' page: one static page at /owner/
+      if (req.method === "GET" && p === "/owner") return Response.redirect(url.origin + "/owner/" + url.search, 302);
       if (p.startsWith("/v1/")) return fail(404, "not_found", "נתיב לא קיים.");
       // AddStudent: the students' own site (addstudent.noaplate.com, or /student/ on any host) is one app at /panel/student.html;
       // until the UI ships it, the media page serves in its place
@@ -764,7 +812,7 @@ export default {
         const r = await env.ASSETS.fetch(new Request(url.origin + "/panel/media.html", { headers: req.headers }));
         return new Response(r.body, { status: r.status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
       }
-      return env.ASSETS.fetch(req);
+      return await withFrameRule(await env.ASSETS.fetch(req), env, p === "/panel" || p.startsWith("/panel/"));
     } catch (e: any) {
       console.error("unhandled", e?.stack || e);
       return fail(500, "server", "שגיאה זמנית בשרת. נסו שוב.");
