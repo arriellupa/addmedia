@@ -1,4 +1,4 @@
-/* AddMedia panel — "Velvet" design system. RTL-first, logical properties only.
+/* InThePage panel — "Velvet" design system. RTL-first, logical properties only.
    Accent (raspberry) = primary action, own messages, selection, focus, "המדיה שלי".
    Brass = sponsored only. Green = live only. */
 @layer tokens, base, components, utilities;

@@ -32,11 +32,17 @@ export function ClipArt({ size = 104 }: { size?: number }) {
 
 export function BrandMark({ size = 64 }: { size?: number }) {
   return (
-    <svg class="brand-mark" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <rect width="64" height="64" rx="16" fill="#2A1630" />
-      <rect x="12" y="12" width="40" height="18" rx="5" fill="#D9C8E6" />
-      <path d="M12 39a5 5 0 0 1 5-5h9c2 0 2.6-4 5-4h2c2.4 0 3 4 5 4h9a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5H17a5 5 0 0 1-5-5Z" fill="#C2266C" />
-      <circle cx="32" cy="33" r="2.6" fill="#fff" />
+    <svg class="brand-mark" width={size} height={size} viewBox="0 0 128 128" aria-hidden="true">
+      {/* InThePage mark: a page on the violet layer, and someone in it */}
+      <rect x="8" y="8" width="112" height="112" rx="30" fill="#5B2EF0" />
+      <path d="M38 26h36l18 18v52a6 6 0 0 1-6 6H38a6 6 0 0 1-6-6V32a6 6 0 0 1 6-6z" fill="#fff" />
+      <path d="M74 26v12a6 6 0 0 0 6 6h12z" fill="#D9CFFF" />
+      <rect x="42" y="50" width="30" height="6" rx="3" fill="#D9CFFF" />
+      <rect x="42" y="62" width="22" height="6" rx="3" fill="#D9CFFF" />
+      <path d="M86 70a20 20 0 1 1-11.4 36.4L64 110l3.6-10.6A20 20 0 0 1 86 70z" fill="#FF7A2F" stroke="#5B2EF0" stroke-width="5" stroke-linejoin="round" />
+      <circle cx="79" cy="90" r="3" fill="#fff" />
+      <circle cx="87" cy="90" r="3" fill="#fff" />
+      <circle cx="95" cy="90" r="3" fill="#fff" />
     </svg>
   );
 }
@@ -114,7 +120,7 @@ export function Sponsored({ ad, compact }: { ad: Ad; compact?: boolean }) {
       <button class="icon-btn ad-why" aria-label="למה אני רואה את זה" onClick={() => setWhy(!why)}>
         {why ? <X size={16} /> : <Info size={16} />}
       </button>
-      {why && <div class="ad-why-pop">המודעה מוצגת לפי האתר שבו אתם גולשים, לא לפי מידע אישי עליכם. AddMedia לא קשורה לאתר המוצג.</div>}
+      {why && <div class="ad-why-pop">המודעה מוצגת לפי האתר שבו אתם גולשים, לא לפי מידע אישי עליכם. InThePage לא קשורה לאתר המוצג.</div>}
     </div>
   );
 }

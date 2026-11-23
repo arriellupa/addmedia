@@ -41,7 +41,7 @@ export function GoBar({ compact, autoFocus }: { compact?: boolean; autoFocus?: b
   const submit = (e: Event) => {
     e.preventDefault();
     const r = go(v);
-    if (r === "search") setNote("תוצאות החיפוש נפתחו בחלון הקריאה. בחרו שם דף, ושתפו אותו ל-AddMedia או הדביקו את הקישור כאן.");
+    if (r === "search") setNote("תוצאות החיפוש נפתחו בחלון הקריאה. בחרו שם דף, ושתפו אותו ל-InThePage או הדביקו את הקישור כאן.");
     else if (r === "page") {
       setNote(null);
       setV("");

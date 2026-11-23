@@ -120,7 +120,7 @@ export function StudentApp() {
         </div>
         <div class="st-foot-row">
           <span>
-            AddStudent · <span class="st-foot-by">מבית AddMedia</span>
+            AddStudent · <span class="st-foot-by">מבית InThePage</span>
           </span>
           <a href="/terms/" target="_blank" rel="noopener">
             תנאי שימוש
@@ -156,7 +156,7 @@ export function StudentApp() {
       {takedownOpen.value && <TakedownDialog onClose={() => (takedownOpen.value = false)} />}
       {sh?.type === "student" && <StudentSheet then={sh.then} />}
       {paywall.value && <PaywallSheet />}
-      {/* the students' own sheets: password sign-in, the account, the set-a-password prompt; the rest from AddMedia */}
+      {/* the students' own sheets: password sign-in, the account, the set-a-password prompt; the rest from InThePage */}
       {sh?.type === "signin" ? <StudentSignIn then={sh.then} resetToken={resetToken} /> : sh?.type === "account" ? <AccountSheet section={sh.section} /> : sh?.type === "password" ? <PasswordSheet then={sh.then} reason={sh.reason} /> : <Sheets />}
       <Toast />
     </div>

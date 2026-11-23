@@ -1,6 +1,6 @@
 import type { PageCtx } from "./host";
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE as string) || (location.protocol.startsWith("http") ? location.origin : "https://addmedia.noaplate.com");
+export const API_BASE: string = (import.meta.env.VITE_API_BASE as string) || (location.protocol.startsWith("http") ? location.origin : "https://inthepage.com");
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public extra: any = {}) {

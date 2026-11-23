@@ -147,7 +147,7 @@ function SignIn({ then }: { then?: () => void }) {
             <Check size={18} /> {busy ? "שומר…" : "מסכימ/ה, אפשר להתחיל"}
           </button>
           <p class="fine">
-            בלחיצה אתם מאשרים את <a href={API_BASE + "/terms/"} target="_blank" rel="noopener">תנאי השימוש</a>. AddMedia אינה קשורה לאתרים שלצידם היא מוצגת.
+            בלחיצה אתם מאשרים את <a href={API_BASE + "/terms/"} target="_blank" rel="noopener">תנאי השימוש</a>. InThePage אינה קשורה לאתרים שלצידם היא מוצגת.
           </p>
         </form>
       )}

@@ -1,5 +1,6 @@
-// AddMedia background: tracks the page the user is reading and drives the two layouts
-// (Chrome side panel, or split screen: browser on top, AddMedia window below).
+// InThePage background: tracks the page the user is reading and drives the two layouts
+// (Chrome side panel, or split screen: browser on top, InThePage window below).
+// The layout the reader chose last is remembered: a click on the icon opens it again.
 
 const ports = new Map(); // port -> { mode, windowId }
 let lastNormalWindow = null;
@@ -8,7 +9,27 @@ let splitMainWindow = null;
 const lastMeta = new Map(); // tabId -> { url, canonical, stale }
 chrome.tabs.onRemoved.addListener((id) => lastMeta.delete(id));
 
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+// ---------- the preferred layout ----------
+let prefLayout = "side";
+const applyPref = () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: prefLayout !== "split" }).catch(() => {});
+chrome.storage.local.get("pref_layout").then((r) => {
+  prefLayout = r.pref_layout === "split" ? "split" : "side";
+  applyPref();
+});
+async function setPref(m) {
+  prefLayout = m === "split" ? "split" : "side";
+  await chrome.storage.local.set({ pref_layout: prefLayout }).catch(() => {});
+  applyPref();
+}
+// fires only when the icon does not open the side panel by itself, that is when the reader prefers the split screen
+chrome.action.onClicked.addListener(async (tab) => {
+  if (splitWindowId != null) {
+    const w = await chrome.windows.get(splitWindowId).catch(() => null);
+    if (w) return chrome.windows.update(splitWindowId, { focused: true });
+  }
+  const w = await chrome.windows.get(tab.windowId).catch(() => null);
+  if (w) await enterSplit({ left: w.left ?? 0, top: w.top ?? 0, width: w.width ?? 1440, height: w.height ?? 900 }, w.id);
+});
 
 chrome.storage.session.get(["splitWindowId", "splitMainWindow", "lastNormalWindow"]).then((s) => {
   splitWindowId = s.splitWindowId ?? null;
@@ -88,8 +109,12 @@ chrome.runtime.onConnect.addListener((port) => {
       const win = await resolveWindow(info);
       chrome.tabs.create({ url: m.url, windowId: win ?? undefined });
     } else if (m.t === "layout") {
-      if (m.mode === "split") await enterSplit(m.screen, info.windowId ?? lastNormalWindow);
-      else await exitSplit();
+      await setPref(m.mode);
+      if (m.mode === "split") {
+        const from = info.mode === "side" ? info.windowId : null;
+        await enterSplit(m.screen, from ?? lastNormalWindow);
+        if (from != null) chrome.sidePanel.close?.({ windowId: from }).catch(() => {}); // Chrome 141+
+      } else await exitSplit();
     } else if (m.t === "pageText") {
       // the opening card: the page's text, read on this device and only because the reader tapped
       const tab = await activeTab(await resolveWindow(info));
@@ -105,7 +130,7 @@ chrome.runtime.onConnect.addListener((port) => {
     } else if (m.t === "badge") {
       const tab = await activeTab(await resolveWindow(info));
       if (tab) {
-        chrome.action.setBadgeBackgroundColor({ color: "#A3195B" });
+        chrome.action.setBadgeBackgroundColor({ color: "#5B2EF0" });
         chrome.action.setBadgeText({ tabId: tab.id, text: m.n > 0 ? compact(m.n) : "" });
       }
     }
@@ -161,7 +186,7 @@ async function enterSplit(screen, fromWindow) {
     }
   }
   const w = await chrome.windows.create({
-    url: chrome.runtime.getURL("panel/index.html?mode=split"),
+    url: chrome.runtime.getURL("shell.html?mode=split"),
     type: "popup",
     left: s.left,
     top: s.top + topH,

@@ -1,4 +1,4 @@
-# Generates the static Hebrew pages of the AddMedia site into worker/public. Run: python3 tools/pages.py
+# Generates the static Hebrew pages of the InThePage site into worker/public. Run: python3 tools/pages.py
 import json
 import os
 
@@ -19,7 +19,7 @@ HEAD = """<!doctype html>
 </head>
 <body>
 <header class="top"><div class="top-in">
-  <a class="logo" href="/"><img src="/favicon.svg" alt="">AddMedia</a>
+  <a class="logo" href="/"><img src="/favicon.svg" alt="">InThePage</a>
   <nav class="nav">
     <a href="/mobile/">בטלפון</a>
     <a href="/rules/">כללי הקהילה</a>
@@ -31,14 +31,14 @@ HEAD = """<!doctype html>
 
 FOOT = """
 <footer class="foot"><div class="foot-in">
-  <span>© 2026 AddMedia</span>
+  <span>© 2026 InThePage</span>
   <a href="/terms/">תנאי שימוש</a>
   <a href="/privacy/">מדיניות פרטיות</a>
   <a href="/rules/">כללי הקהילה</a>
   <a href="/accessibility/">הצהרת נגישות</a>
   <a href="/publishers/">לבעלי אתרים</a>
   <a href="/contact/">יצירת קשר ובקשת הסרה</a>
-  <span>AddMedia אינה קשורה לאתרים שלצידם היא מוצגת.</span>
+  <span>InThePage אינה קשורה לאתרים שלצידם היא מוצגת.</span>
 </div></footer>
 </body>
 </html>
@@ -54,13 +54,13 @@ def page(path, title, desc, body):
         f.write(HEAD.format(title=title, desc=desc) + body + FOOT)
 
 
-page("", "AddMedia — כל דף באינטרנט הוא חדר", "שיחה חיה, תגובות ומדיה על כל דף שאתם קוראים — עם כל מי שקורא אותו עכשיו.", """
+page("", "InThePage — כל דף באינטרנט הוא חדר", "שיחה חיה, תגובות ומדיה על כל דף שאתם קוראים — עם כל מי שקורא אותו עכשיו.", """
 <main class="wrap wide">
   <section style="display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-top:20px" class="hero">
     <div>
       <div style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--live);margin-bottom:14px"><span style="width:8px;height:8px;border-radius:50%;background:var(--live)"></span> חי עכשיו על אלפי דפים</div>
       <h1>כל דף באינטרנט<br>הוא חדר.</h1>
-      <p class="lead">AddMedia מוסיפה לכל כתבה, סרטון או דף שיחה חיה, תגובות ומדיה — עם כל מי שקורא אותו בדיוק עכשיו. האתר נשאר כמו שהוא; השיחה צמודה אליו.</p>
+      <p class="lead">InThePage מוסיפה לכל כתבה, סרטון או דף שיחה חיה, תגובות ומדיה — עם כל מי שקורא אותו בדיוק עכשיו. האתר נשאר כמו שהוא; השיחה צמודה אליו.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:24px">
         <a class="btn btn-primary" href="/get/">הוספה ל-Chrome</a>
         <a class="btn btn-secondary" href="/mobile/">בטלפון</a>
@@ -68,7 +68,7 @@ page("", "AddMedia — כל דף באינטרנט הוא חדר", "שיחה חי
       </div>
       <p style="font-size:13px;color:var(--t3);margin-top:14px">טקסט וצ׳אט בחינם. תמונות והצמדה ארוכה — בתשלום קטן.</p>
     </div>
-    <div><img src="/hero.png" alt="דף כתבה למעלה, ומתחתיו השיחה החיה של AddMedia" style="width:100%;max-width:440px;display:block;margin:0 auto"></div>
+    <div><img src="/hero.png" alt="דף כתבה למעלה, ומתחתיו השיחה החיה של InThePage" style="width:100%;max-width:440px;display:block;margin:0 auto"></div>
   </section>
   <div class="grid3">
     <div class="card"><h3>שיחה חיה</h3><p>מדברים עם מי שקורא איתכם את אותו דף — עכשיו. אין אף אחד בדף? עוברים בלחיצה לשיחה על האתר כולו.</p></div>
@@ -82,27 +82,26 @@ page("", "AddMedia — כל דף באינטרנט הוא חדר", "שיחה חי
 <style>@media (max-width:860px){.hero{grid-template-columns:1fr!important}}</style>
 """)
 
-page("get", "התקנת AddMedia ל-Chrome", "התקנת התוסף של AddMedia לדפדפן Chrome.", """
+page("get", "התקנת InThePage ל-Chrome", "התקנת התוסף של InThePage לדפדפן Chrome.", """
 <main class="wrap">
   <h1>התקנה ל-Chrome</h1>
-  <p class="lead">התוסף יופיע בקרוב בחנות של Chrome. עד אז אפשר להתקין אותו ידנית, בשלוש דקות.</p>
-  <h2>התקנה ידנית</h2>
+  <p class="lead">התוסף נמצא בחנות של Chrome. לחיצה אחת, והוא מותקן ומתעדכן לבד.</p>
+  <p><a class="btn btn-primary" href="https://chromewebstore.google.com/detail/kkeefmpcopkjpljhehakkapnehhbbkpb" rel="noopener">הוספה ל-Chrome</a></p>
   <ol>
-    <li>הורידו את קובץ התוסף <a href="/addmedia-extension.zip">addmedia-extension.zip</a> ופתחו אותו לתיקייה.</li>
-    <li>היכנסו לכתובת <code>chrome://extensions</code> והפעילו את "מצב מפתח" בפינה העליונה.</li>
-    <li>לחצו על "טעינת תוסף לא ארוז" ובחרו את התיקייה.</li>
-    <li>הצמידו את סמל AddMedia לסרגל הכלים. לחיצה עליו פותחת את הפאנל בצד הדף.</li>
+    <li>לחצו על "הוספה ל-Chrome" בחנות, ואשרו.</li>
+    <li>הצמידו את סמל InThePage לסרגל הכלים (סמל הפאזל שליד שורת הכתובת).</li>
+    <li>גלשו לכל דף ולחצו על הסמל.</li>
   </ol>
-  <h2>שני מצבי תצוגה</h2>
-  <p><strong>פאנל צד</strong> — נצמד לצד החלון. <strong>מסך מפוצל</strong> — הדף בחלק העליון של המסך ו-AddMedia בחלק התחתון; לחיצה על סמל הפיצול בפאנל, או Alt+Shift+S.</p>
+  <h2>שלושה מצבי תצוגה</h2>
+  <p><strong>פאנל צד</strong> — נצמד לצד החלון. <strong>מסך מפוצל</strong> — הדף בחלק העליון של המסך ו-InThePage בחלק התחתון; לחיצה על סמל הפיצול בפאנל, או Alt+Shift+S. <strong>דף מלא</strong> — InThePage בלשונית משלו, בכפתור שבראש הפאנל. בין פאנל הצד למסך המפוצל, הבחירה האחרונה נשמרת, ולחיצה על הסמל פותחת אותה שוב.</p>
 </main>
 """)
 
-page("rules", "כללי הקהילה — AddMedia", "כללי הקהילה של AddMedia.", f"""
+page("rules", "כללי הקהילה — InThePage", "כללי הקהילה של InThePage.", f"""
 <main class="wrap">
   <h1>כללי הקהילה</h1>
   <p class="meta">עודכן: {UPDATED}</p>
-  <p class="lead">AddMedia היא שיחה של אנשים שקוראים את אותו דף. כדי שתישאר נעימה, אלה הכללים.</p>
+  <p class="lead">InThePage היא שיחה של אנשים שקוראים את אותו דף. כדי שתישאר נעימה, אלה הכללים.</p>
   <h2>מה אסור</h2>
   <ul>
     <li><strong>פגיעה באחרים:</strong> קללות, השפלה, הטרדה, בריונות ופניות חוזרות למי שביקש שלא.</li>
@@ -120,13 +119,13 @@ page("rules", "כללי הקהילה — AddMedia", "כללי הקהילה של 
 </main>
 """)
 
-page("terms", "תנאי שימוש — AddMedia", "תנאי השימוש של AddMedia.", f"""
+page("terms", "תנאי שימוש — InThePage", "תנאי השימוש של InThePage.", f"""
 <main class="wrap">
   <h1>תנאי שימוש</h1>
   <p class="meta">עודכן: {UPDATED}</p>
   {DRAFT}
   <h2>1. השירות</h2>
-  <p>AddMedia ("השירות") מאפשרת לגולשים לנהל שיחה, לפרסם תגובות ומדיה ולצפות במודעות לצד דפי אינטרנט. השירות מופעל על ידי [שם החברה בע״מ, ח״פ] ("אנחנו"). השירות אינו קשור לאתרים שלצידם הוא מוצג, ואינו משנה את תוכנם.</p>
+  <p>InThePage ("השירות") מאפשרת לגולשים לנהל שיחה, לפרסם תגובות ומדיה ולצפות במודעות לצד דפי אינטרנט. השירות מופעל על ידי [שם החברה בע״מ, ח״פ] ("אנחנו"). השירות אינו קשור לאתרים שלצידם הוא מוצג, ואינו משנה את תוכנם.</p>
   <h2>2. חשבון</h2>
   <p>קריאה אינה דורשת חשבון. פרסום דורש התחברות במייל ואישור כללי הקהילה. השימוש מגיל [16] ומעלה. אתם אחראים לפעילות בחשבון שלכם.</p>
   <h2>3. התוכן שלכם</h2>
@@ -148,7 +147,7 @@ page("terms", "תנאי שימוש — AddMedia", "תנאי השימוש של Ad
 </main>
 """)
 
-page("privacy", "מדיניות פרטיות — AddMedia", "מדיניות הפרטיות של AddMedia.", f"""
+page("privacy", "מדיניות פרטיות — InThePage", "מדיניות הפרטיות של InThePage.", f"""
 <main class="wrap">
   <h1>מדיניות פרטיות</h1>
   <p class="meta">עודכן: {UPDATED}</p>
@@ -157,16 +156,17 @@ page("privacy", "מדיניות פרטיות — AddMedia", "מדיניות הפ
   <h2>מה אנחנו אוספים</h2>
   <ul>
     <li><strong>כתובת הדף שאתם קוראים</strong> — נשלחת לשרת כדי להציג את החדר שלו. כתובת מזוהה רק כגיבוב חד-כיווני עם מפתח סודי, ונשמרת בגלוי רק לדפים שיש בהם תוכן. איננו שומרים איזה משתמש ביקר באיזה דף.</li>
+    <li><strong>טקסט הדף</strong> — רק כשאתם לוחצים על כרטיס הפתיחה (סיכום ושאלות לדיון): הטקסט הגלוי של הדף נקרא במכשיר שלכם ונשלח פעם אחת ליצירת הסיכום. נשמר רק הסיכום, לא הטקסט. בדפים עם שדה סיסמה הטקסט לעולם אינו נקרא.</li>
     <li><strong>נוכחות</strong> — מונה "כאן עכשיו" נשמר בזיכרון בלבד ונעלם כשאתם עוזבים.</li>
     <li><strong>חשבון</strong> — גיבוב של כתובת המייל (לא המייל עצמו), שם תצוגה, תאריך הצטרפות ואישור הכללים.</li>
     <li><strong>תוכן שפרסמתם</strong> — לתקופת התוקף שלו: צ׳אט עד 48 שעות, תגובות ומדיה 7 ימים או עד תום ההצמדה.</li>
     <li><strong>רכישות</strong> — יומן רכישות לצורכי חשבונאות ומס. פרטי אשראי אינם נשמרים אצלנו.</li>
     <li><strong>נתונים טכניים</strong> — כתובת IP ויומני שגיאות, עד 30 יום, לאבטחה ולמניעת שימוש לרעה.</li>
   </ul>
-  <h2>היכן AddMedia כבויה</h2>
+  <h2>היכן InThePage כבויה</h2>
   <p>בדפים עם שדה סיסמה, דפי התחברות ותשלום, כתובות עם פרטי גישה, רשתות פנימיות, אתרי בנקים, בריאות ושירותי ממשל — הפאנל כבוי ושום כתובת לא נשלחת לבדיקת תוכן.</p>
   <h2>עם מי אנחנו משתפים</h2>
-  <p>ספקי תשתית שפועלים בשמנו בלבד: Cloudflare (אחסון ושרתים), OpenAI (בדיקה אוטומטית של תוכן לפני פרסום), Resend (שליחת קוד כניסה במייל) וספקי התשלום. חלקם פועלים מחוץ לישראל. איננו מוכרים מידע אישי.</p>
+  <p>ספקי תשתית שפועלים בשמנו בלבד: Cloudflare (אחסון ושרתים), OpenAI (בדיקה אוטומטית של תוכן לפני פרסום), Anthropic (סיכום הדף בכרטיס הפתיחה, כשאתם מבקשים אותו), Resend (שליחת קוד כניסה במייל) וספקי התשלום. חלקם פועלים מחוץ לישראל. איננו מוכרים מידע אישי.</p>
   <h2>הזכויות שלכם</h2>
   <p>אפשר לעיין במידע, לתקן אותו ולמחוק את החשבון וכל התוכן שלכם — ישירות ב"המדיה שלי" ← בטיחות ← מחיקת החשבון. המחיקה מסירה את התוכן מכל הדפים; גיבויים נמחקים בתוך 30 יום. לפניות פרטיות: <a href="/contact/">טופס הפנייה</a>. הממונה על הגנת הפרטיות: [שם ופרטי קשר].</p>
   <h2>ילדים</h2>
@@ -174,12 +174,12 @@ page("privacy", "מדיניות פרטיות — AddMedia", "מדיניות הפ
 </main>
 """)
 
-page("accessibility", "הצהרת נגישות — AddMedia", "הצהרת הנגישות של AddMedia.", f"""
+page("accessibility", "הצהרת נגישות — InThePage", "הצהרת הנגישות של InThePage.", f"""
 <main class="wrap">
   <h1>הצהרת נגישות</h1>
   <p class="meta">עודכן: {UPDATED}</p>
   {DRAFT}
-  <p>אנו פועלים להנגשת AddMedia לפי תקן ישראלי 5568 והנחיות WCAG 2.0 ברמה AA.</p>
+  <p>אנו פועלים להנגשת InThePage לפי תקן ישראלי 5568 והנחיות WCAG 2.0 ברמה AA.</p>
   <h2>מה עשינו</h2>
   <ul>
     <li>ניגודיות צבעים של 4.5:1 לפחות לטקסט, בתצוגה בהירה וכהה.</li>
@@ -193,10 +193,10 @@ page("accessibility", "הצהרת נגישות — AddMedia", "הצהרת הנג
 </main>
 """)
 
-page("publishers", "לבעלי אתרים — AddMedia", "איך בעלי אתרים שולטים במה ש-AddMedia מציגה לצד האתר שלהם.", """
+page("publishers", "לבעלי אתרים — InThePage", "איך בעלי אתרים שולטים במה ש-InThePage מציגה לצד האתר שלהם.", """
 <main class="wrap">
   <h1>לבעלי אתרים</h1>
-  <p class="lead">AddMedia מציגה את האתר שלכם כמו שהוא — בלי שינוי, בלי הסתרת המודעות שלכם ובלי הזרקת קוד לדף. השיחה מתנהלת בחלון נפרד, מסומנת "לא קשור לאתר", ואתם שולטים במה שמוצג לצידכם.</p>
+  <p class="lead">InThePage מציגה את האתר שלכם כמו שהוא — בלי שינוי, בלי הסתרת המודעות שלכם ובלי הזרקת קוד לדף. השיחה מתנהלת בחלון נפרד, מסומנת "לא קשור לאתר", ואתם שולטים במה שמוצג לצידכם.</p>
   <h2>כיבוי מהיר בתגית אחת</h2>
   <p>הוסיפו לראש הדף (או לכל דף שתבחרו):</p>
   <pre>&lt;meta name="addmedia" content="nocomments,noads"&gt;</pre>
@@ -212,7 +212,7 @@ page("publishers", "לבעלי אתרים — AddMedia", "איך בעלי אתר
 </main>
 """)
 
-page("contact", "יצירת קשר ובקשת הסרה — AddMedia", "פנייה, בקשת הסרת תוכן, פרטיות ובעלי אתרים.", """
+page("contact", "יצירת קשר ובקשת הסרה — InThePage", "פנייה, בקשת הסרת תוכן, פרטיות ובעלי אתרים.", """
 <main class="wrap">
   <h1>יצירת קשר ובקשת הסרה</h1>
   <p class="lead">כל פנייה מגיעה ישירות לצוות הניהול ומקבלת מענה. לבקשת הסרה — צרפו את כתובת הדף ותארו את התוכן.</p>
@@ -264,9 +264,9 @@ BOOKMARKLET = ("javascript:(function(){var c=document.querySelector('link[rel=ca
                "+'&title='+encodeURIComponent((document.querySelector('meta[property=\"og:title\"]')||{}).content||document.title);"
                "var w=window.open(u,'_blank');if(!w)location.href=u;})();")
 
-page("mobile", "AddMedia בטלפון", "איך משתמשים ב-AddMedia ב-iPhone ובאנדרואיד.", """
+page("mobile", "InThePage בטלפון", "איך משתמשים ב-InThePage ב-iPhone ובאנדרואיד.", """
 <main class="wrap">
-  <h1>AddMedia בטלפון</h1>
+  <h1>InThePage בטלפון</h1>
   <p class="lead">קוראים כתבה? בלחיצה אחת רואים מי עוד קורא אותה עכשיו, ומדברים איתם. בחרו את הטלפון שלכם.</p>
 
   <h2>אנדרואיד (Chrome)</h2>
@@ -279,7 +279,7 @@ page("mobile", "AddMedia בטלפון", "איך משתמשים ב-AddMedia ב-iP
     <h3>שימוש</h3>
     <ol>
       <li>בכל כתבה לחצו <strong>שיתוף</strong>.</li>
-      <li>בחרו <strong>AddMedia</strong> — השיחה של אותה כתבה נפתחת.</li>
+      <li>בחרו <strong>InThePage</strong> — השיחה של אותה כתבה נפתחת.</li>
     </ol>
   </div>
 
@@ -293,7 +293,7 @@ page("mobile", "AddMedia בטלפון", "איך משתמשים ב-AddMedia ב-iP
     <h3>שימוש</h3>
     <ol>
       <li>בכתבה לחצו <strong>שיתוף</strong> ואז <strong>"העתקה"</strong>.</li>
-      <li>פתחו את AddMedia ממסך הבית ולחצו <strong>"הדבקת קישור מהלוח"</strong>.</li>
+      <li>פתחו את InThePage ממסך הבית ולחצו <strong>"הדבקת קישור מהלוח"</strong>.</li>
     </ol>
   </div>
 
@@ -304,17 +304,17 @@ page("mobile", "AddMedia בטלפון", "איך משתמשים ב-AddMedia ב-iP
     <p><button class="btn btn-primary" id="copyBm" type="button">העתקת קוד הכפתור</button> <span id="copied" class="meta" hidden>הועתק ✓</span></p>
     <h3>2. שמירה כסימנייה</h3>
     <ol>
-      <li><strong>iPhone:</strong> בדף הזה לחצו שיתוף ← <strong>"הוספת סימנייה"</strong> ושמרו בשם <strong>AddMedia</strong>. אחר כך: סימניות ← <strong>עריכה</strong> ← AddMedia ← מחקו את הכתובת והדביקו את הקוד ← <strong>סיום</strong>.</li>
-      <li><strong>אנדרואיד:</strong> בדף הזה לחצו ⋮ ← ☆ (שמירה כסימנייה) ← <strong>עריכה</strong>. שנו את השם ל-<strong>AddMedia</strong>, ובשדה הכתובת מחקו הכול והדביקו את הקוד.</li>
-      <li><strong>מחשב:</strong> גררו את הכפתור הזה לסרגל הסימניות: <a class="btn btn-secondary" id="bmLink" href="#">AddMedia</a></li>
+      <li><strong>iPhone:</strong> בדף הזה לחצו שיתוף ← <strong>"הוספת סימנייה"</strong> ושמרו בשם <strong>InThePage</strong>. אחר כך: סימניות ← <strong>עריכה</strong> ← InThePage ← מחקו את הכתובת והדביקו את הקוד ← <strong>סיום</strong>.</li>
+      <li><strong>אנדרואיד:</strong> בדף הזה לחצו ⋮ ← ☆ (שמירה כסימנייה) ← <strong>עריכה</strong>. שנו את השם ל-<strong>InThePage</strong>, ובשדה הכתובת מחקו הכול והדביקו את הקוד.</li>
+      <li><strong>מחשב:</strong> גררו את הכפתור הזה לסרגל הסימניות: <a class="btn btn-secondary" id="bmLink" href="#">InThePage</a></li>
     </ol>
     <h3>3. שימוש</h3>
     <ol>
-      <li><strong>iPhone:</strong> בכתבה לחצו על סמל הסימניות ובחרו <strong>AddMedia</strong>.</li>
-      <li><strong>אנדרואיד:</strong> בכתבה הקלידו בשורת הכתובת <strong>AddMedia</strong> ובחרו את הסימנייה מההצעות (פתיחה מתפריט הסימניות לא מפעילה את הכפתור).</li>
+      <li><strong>iPhone:</strong> בכתבה לחצו על סמל הסימניות ובחרו <strong>InThePage</strong>.</li>
+      <li><strong>אנדרואיד:</strong> בכתבה הקלידו בשורת הכתובת <strong>InThePage</strong> ובחרו את הסימנייה מההצעות (פתיחה מתפריט הסימניות לא מפעילה את הכפתור).</li>
     </ol>
   </div>
-  <p class="meta">הכפתור רק קורא את כתובת הדף ואת כותרתו ופותח את AddMedia בלשונית חדשה. הוא לא משנה את הדף ולא שומר דבר.</p>
+  <p class="meta">הכפתור רק קורא את כתובת הדף ואת כותרתו ופותח את InThePage בלשונית חדשה. הוא לא משנה את הדף ולא שומר דבר.</p>
 </main>
 <script>
   const BM = %s;

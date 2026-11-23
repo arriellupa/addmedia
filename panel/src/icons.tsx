@@ -41,6 +41,7 @@ export const Globe = (p: P) => I(<><circle cx="12" cy="12" r="10" /><path d="M2 
 export const FileI = (p: P) => I(<><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v5h6" /></>, p);
 export const SplitI = (p: P) => I(<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 13h18" /></>, p);
 export const SideI = (p: P) => I(<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18" /></>, p);
+export const FullI = (p: P) => I(<><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>, p);
 export const Check = (p: P) => I(<path d="M20 6 9 17l-5-5" />, p);
 export const Clock = (p: P) => I(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>, p);
 export const Alert = (p: P) => I(<><circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" /></>, p);

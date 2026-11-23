@@ -92,7 +92,7 @@ function Disabled({ reason }: { reason: string }) {
       <span class="state-ic">
         <Lock size={22} />
       </span>
-      <div class="empty-title">AddMedia כבוי בדף הזה</div>
+      <div class="empty-title">InThePage כבוי בדף הזה</div>
       <div class="empty-sub">{text[reason] || text.domain}</div>
     </div>
   );
@@ -123,7 +123,7 @@ function NoPage() {
     <div class="state">
       <BrandMark />
       <div class="empty-title">על איזה דף מדברים?</div>
-      <div class="empty-sub">הקלידו כתובת או חפשו בגוגל: הדף נפתח בחלון קריאה לצד AddMedia, והשיחה עליו כאן.</div>
+      <div class="empty-sub">הקלידו כתובת או חפשו בגוגל: הדף נפתח בחלון קריאה לצד InThePage, והשיחה עליו כאן.</div>
       <div class="demo-url">
         <GoBar autoFocus />
       </div>
@@ -136,7 +136,7 @@ function NoPage() {
       <a class="btn btn-secondary paste-btn" href="/media/campus">
         <Cap size={18} /> לגרסת הסטודנטים
       </a>
-      <a class="fine" href="/mobile/">איך מוסיפים כפתור AddMedia לדפדפן בטלפון</a>
+      <a class="fine" href="/mobile/">איך מוסיפים כפתור InThePage לדפדפן בטלפון</a>
     </div>
   );
 }

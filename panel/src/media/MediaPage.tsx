@@ -1,4 +1,4 @@
-// The media page (/media/): AddMedia as a place of its own — "מרכז הבקרה". Who is online (right), the center window
+// The media page (/media/): InThePage as a place of its own — "מרכז הבקרה". Who is online (right), the center window
 // (the operator's ad, or the room's card), the live chat (left), the talkbacks (center), the readers' media strip
 // (bottom). A tap on the cap turns it into the campus: institution › faculty › year › course, with articles and summaries.
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -75,7 +75,7 @@ function Top() {
   return (
     <header class="mc-top">
       <a class="mc-brand" href="/media/">
-        AddMedia
+        InThePage
         <span class="mc-brand-sub">{campus ? "קמפוס" : "מרכז הבקרה"}</span>
       </a>
       {!campus && (

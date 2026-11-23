@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "AddMedia",
-  "short_name": "AddMedia",
-  "version": "1.0.0",
-  "description": "שיחה חיה, תגובות ומדיה על כל דף שאתם קוראים, עם כל מי שקורא אותו עכשיו. במסך מפוצל: הדף למעלה, השיחה למטה.",
+  "name": "InThePage",
+  "short_name": "InThePage",
+  "version": "1.1.0",
+  "description": "שיחה חיה, תגובות ומדיה על כל דף שאתם קוראים, עם מי שקורא אותו עכשיו. בפאנל צד, במסך מפוצל או בדף מלא.",
   "default_locale": "he",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -20,10 +20,10 @@
     "type": "module"
   },
   "side_panel": {
-    "default_path": "panel/index.html"
+    "default_path": "shell.html"
   },
   "action": {
-    "default_title": "AddMedia — מי עוד קורא את הדף הזה",
+    "default_title": "InThePage — מי עוד נמצא בדף הזה",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png",
@@ -54,8 +54,8 @@
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
-      "description": "מסך מפוצל: הדף למעלה, AddMedia למטה"
+      "description": "מסך מפוצל: הדף למעלה, InThePage למטה"
     }
   },
-  "homepage_url": "https://addmedia.noaplate.com/"
+  "homepage_url": "https://inthepage.com/"
 }

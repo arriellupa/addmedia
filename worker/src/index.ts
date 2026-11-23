@@ -1,4 +1,4 @@
-// AddMedia API — Cloudflare Worker entry
+// InThePage API — Cloudflare Worker entry
 import { handleAdmin, modLog } from "./admin";
 import { User, changePassword, dropDevice, forgotPassword, getUser, listDevices, loginAuth, logout, publicUser, registerAuth, resetPassword, startAuth, tokenFrom, verifyAuth, deviceOf, ipHashOf } from "./auth";
 import { Canon, ROOM_RE, canonicalize, isSensitive, roomIds } from "./canon";
@@ -14,7 +14,7 @@ export { PageRoom } from "./room";
 export { Directory } from "./directory";
 
 // bump on each release: /v1/health shows which version is live
-const VERSION = "2026-10-29.4";
+const VERSION = "2026-11-23.1";
 
 const room = (env: Env, id: string) => env.ROOMS.get(env.ROOMS.idFromName(id));
 const STUDENT_HOSTS = new Set(["addstudent.com", "www.addstudent.com", "addstudent.noaplate.com"]);
@@ -131,7 +131,7 @@ async function requireUser(env: Env, req: Request, url: URL): Promise<User | Res
   return u;
 }
 
-/** the students' product needs a password on the account (a code-only AddMedia account is asked to set one) */
+/** the students' product needs a password on the account (a code-only InThePage account is asked to set one) */
 const needsPassword = (u: User) => !u.pass_hash;
 
 const isNewUser = (u: User) => now() - u.created_at < DAY;
@@ -527,11 +527,33 @@ async function serveMedia(env: Env, key: string): Promise<Response> {
   return new Response(obj.body, { headers: h });
 }
 
+/** who may frame the panel: the site itself and the extension's shell (v1.1+). Without ids (or in dev) any extension. */
+function frameAncestors(env: Env): string {
+  const ids = String(env.EXT_IDS || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => /^[a-p]{32}$/.test(x));
+  const ext = ids.length && !isTrue(env.DEV_MODE) ? ids.map((id) => `chrome-extension://${id}`).join(" ") : "chrome-extension:";
+  return `frame-ancestors 'self' ${ext}`;
+}
+
+/** the panel's pages (/panel/…) carry the frame rule; the rest of the site is not framed by anyone else */
+async function withFrameRule(r: Response, env: Env, panel: boolean): Promise<Response> {
+  const ct = r.headers.get("Content-Type") || "";
+  if (!ct.includes("text/html")) return r;
+  const h = new Headers(r.headers);
+  h.set("Content-Security-Policy", panel ? frameAncestors(env) : "frame-ancestors 'self'");
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+}
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const p = url.pathname;
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    if (url.hostname === "www.inthepage.com" && (req.method === "GET" || req.method === "HEAD")) {
+      return Response.redirect("https://inthepage.com" + p + url.search, 301);
+    }
     try {
       if (p === "/v1/health") return json({ ok: true, at: now(), v: VERSION, terms: TERMS_VERSION });
       if (p === "/v1/debug") return await debugPage(req, env, url);
@@ -764,7 +786,7 @@ export default {
         const r = await env.ASSETS.fetch(new Request(url.origin + "/panel/media.html", { headers: req.headers }));
         return new Response(r.body, { status: r.status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
       }
-      return env.ASSETS.fetch(req);
+      return await withFrameRule(await env.ASSETS.fetch(req), env, p === "/panel" || p.startsWith("/panel/"));
     } catch (e: any) {
       console.error("unhandled", e?.stack || e);
       return fail(500, "server", "שגיאה זמנית בשרת. נסו שוב.");

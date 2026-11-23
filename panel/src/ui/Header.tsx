@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { count } from "../fmt";
 import { host } from "../host";
-import { Cap, External, FileI, Globe, SideI, SplitI } from "../icons";
+import { Cap, External, FileI, FullI, Globe, SideI, SplitI } from "../icons";
 import { API_BASE } from "../api";
 
 /** the campus page: the last faculty the reader opened there, or the picker */
@@ -83,7 +83,7 @@ export function Header() {
       <div class="head-in">
         <div class="head-row">
           <div class="page-id">
-            <span class="wordmark">AddMedia</span>
+            <span class="wordmark">InThePage</span>
             {b && !b.disabled && <Clip />}
           </div>
           <div class="head-actions">
@@ -99,7 +99,7 @@ export function Header() {
                 aria-label="לגרסת הסטודנטים: סיכומים ומאמרים לפי פקולטה ושנה"
                 title="לגרסת הסטודנטים"
                 onClick={async () => {
-                  const url = (API_BASE || "https://addmedia.noaplate.com") + (await lastPlace());
+                  const url = (API_BASE || "https://inthepage.com") + (await lastPlace());
                   if (host.kind === "web") location.href = url; // the same tab: the campus is the same app
                   else host.open(url);
                 }}
@@ -107,10 +107,20 @@ export function Header() {
                 <Cap />
               </button>
             )}
+            {host.kind === "extension" && p && (
+              <button
+                class="icon-btn"
+                aria-label="דף מלא: InThePage בלשונית משלו"
+                title="דף מלא"
+                onClick={() => host.open(`${API_BASE || "https://inthepage.com"}/media/?url=${encodeURIComponent(p.url)}`)}
+              >
+                <FullI />
+              </button>
+            )}
             {host.kind === "extension" && host.setLayout && (
               <button
                 class="icon-btn"
-                aria-label={host.layout === "split" ? "חזרה לפאנל צד" : "מסך מפוצל: הדף למעלה, AddMedia למטה"}
+                aria-label={host.layout === "split" ? "חזרה לפאנל צד" : "מסך מפוצל: הדף למעלה, InThePage למטה"}
                 title={host.layout === "split" ? "חזרה לפאנל צד" : "מסך מפוצל"}
                 onClick={() => host.setLayout!(host.layout === "split" ? "side" : "split")}
               >

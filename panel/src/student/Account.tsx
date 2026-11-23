@@ -1,6 +1,6 @@
 // AddStudent's account: password sign-in and sign-up (the email code is the second factor on a new device),
 // «שכחתי סיסמה», the set-a-password prompt for code-only accounts (403 `password`), and «החשבון שלי» with the
-// active devices («ניתוק») and a password change. AddMedia keeps its own code-only sheet (ui/Sheets.tsx).
+// active devices («ניתוק») and a password change. InThePage keeps its own code-only sheet (ui/Sheets.tsx).
 // Built to the contract of 2026-10-29 18:44; the calls live in api.ts.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { API_BASE, ApiError, Device, Me, api } from "../api";
