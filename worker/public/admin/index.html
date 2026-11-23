@@ -58,7 +58,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const when = (t) => (t ? new Date(t).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "");
 const REASON = { spam: "ספאם", harassment: "הטרדה", hate: "שנאה", violence: "אלימות", sexual: "מיני", intimate: "אינטימי ללא הסכמה", minor: "קטינים", privacy: "פרטיות", copyright: "זכויות יוצרים", other: "אחר" };
-const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית", takedown: "הוסר לבקשת בעל זכויות", course_meta: "פרטי קורס עודכנו", remove_doc: "מסמך הוסר", remove_event: "אירוע הוסר", create_doc: "מסמך נכתב", edit_doc: "מסמך נערך", student_profile: "פרופיל סטודנט", hold: "הוקפא לאחר בקשת הסרה", restore: "הושב", grant_campus: "מנוי קמפוס הוענק", unlock: "נעילה שוחררה", velocity_lock: "נעילת מהירות (קריאות רבות)" };
+const ACTION = { hide: "הוסר", restore: "שוחזר", dismiss: "נדחה", ban: "השעיה", unban: "ביטול השעיה", block_text: "טקסט נחסם", block_image: "תמונה נחסמה", auto_hide: "הוסתר אוטומטית", takedown: "הוסר לבקשת בעל זכויות", course_meta: "פרטי קורס עודכנו", remove_doc: "מסמך הוסר", remove_event: "אירוע הוסר", create_doc: "מסמך נכתב", edit_doc: "מסמך נערך", student_profile: "פרופיל סטודנט", hold: "הוקפא לאחר בקשת הסרה", restore: "הושב", grant_campus: "מנוי קמפוס הוענק", unlock: "נעילה שוחררה", velocity_lock: "נעילת מהירות (קריאות רבות)", owner_grant: "בעלות על אתר הוענקה", owner_reject: "בקשת בעלות נדחתה", owner_revoke: "בעלות בוטלה", owner_share: "חלק בעל האתר עודכן", owner_settings: "בעל אתר עדכן הגדרות", owner_hide: "בעל האתר הסתיר", owner_restore: "בעל האתר החזיר" };
 const KIND = { summary: "סיכום", exercise: "תרגול", article: "מאמר" };
 const ROLE = { lecturer: "מרצה", institution: "מוסד", author: "מחבר/ת", other: "אחר" };
 let token = sessionStorage.getItem("am_admin") || "";
@@ -73,7 +73,7 @@ function showLogin(err = "") { $("#login").hidden = false; $("#app").hidden = tr
 $("#login").addEventListener("submit", async (e) => { e.preventDefault(); token = $("#tok").value.trim(); sessionStorage.setItem("am_admin", token); start(); });
 $("#logout").addEventListener("click", (e) => { e.preventDefault(); sessionStorage.removeItem("am_admin"); token = ""; showLogin(); });
 
-const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"], ["settings", "הגדרות ופרסומת"], ["docs", "מאמרים וסיכומים"], ["takedowns", "הודעות הסרה"]];
+const TABS = [["reports", "דיווחים"], ["resolved", "דיווחים שטופלו"], ["contacts", "פניות"], ["log", "יומן החלטות"], ["users", "משתמשים"], ["ads", "פרסומות"], ["domains", "אתרים"], ["terms", "מילים חסומות"], ["settings", "הגדרות ופרסומת"], ["docs", "מאמרים וסיכומים"], ["takedowns", "הודעות הסרה"], ["owners", "בעלי אתרים"]];
 let cur = "reports";
 async function start() {
   try { const s = await api("stats"); renderStats(s); } catch { return; }
@@ -117,7 +117,7 @@ const VIEWS = {
   },
   async log() {
     const { log } = await api("log");
-    return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>פעולה</th><th>יעד</th><th>נימוק</th></tr>${log.map((l) => `<tr><td>${when(l.at)}</td><td>${l.actor === "auto" ? "אוטומטי" : "מנהל"}</td><td>${ACTION[l.action] || esc(l.action)}</td><td class="small" dir="ltr">${esc(l.target_type)} ${esc(l.target_id)}</td><td>${esc(l.reason || "")}</td></tr>`).join("")}</table>`;
+    return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>פעולה</th><th>יעד</th><th>נימוק</th></tr>${log.map((l) => `<tr><td>${when(l.at)}</td><td>${l.actor === "auto" ? "אוטומטי" : String(l.actor || "").startsWith("owner:") ? `בעל אתר <span class="small" dir="ltr">${esc(l.actor.slice(6))}</span>` : "מנהל"}</td><td>${ACTION[l.action] || esc(l.action)}</td><td class="small" dir="ltr">${esc(l.target_type)} ${esc(l.target_id)}</td><td>${esc(l.reason || "")}</td></tr>`).join("")}</table>`;
   },
   async users() {
     const q = $("#uq")?.value || "";
@@ -151,6 +151,8 @@ const VIEWS = {
         <label>ימי שמירה לתוכן<br><input name="retentionDays" type="number" min="1" max="365" value="${s.retentionDays}" style="width:110px"></label>
         <label style="align-self:end"><input name="linkMedia" type="checkbox" ${ck(s.linkMedia)}> תמונות יכולות להיות קישור חי</label>
       </div>
+      <h3 style="margin:8px 0 0">בעלי אתרים</h3>
+      <label><input name="ownerAutoApprove" type="checkbox" ${ck(s.ownerAutoApprove)}> בעל אתר שאימת את הבעלות מקבל את החדר מיד, בלי אישור ידני</label>
       <h3 style="margin:8px 0 0">הקמפוס</h3>
       <div class="row" style="gap:18px;flex-wrap:wrap">
         <label>מסמכים לסטודנט בחודש<br><input name="campusDocsPerMonth" type="number" min="1" max="10000" value="${s.campusDocsPerMonth}" style="width:110px"></label>
@@ -180,6 +182,20 @@ const VIEWS = {
     const who = (d) => d.full_name ? `${esc(d.full_name)}<div class="small">${esc(d.s_inst)} · ${esc(d.s_faculty)} · שנה ${d.s_year} · ${esc(d.track)}${d.email ? ` · <span dir="ltr">${esc(d.email)}</span>` : ""}</div>` : `${esc(d.user_name)}<div class="small">בלי פרופיל סטודנט</div>`;
     return `<table style="margin-top:16px"><tr><th>מתי</th><th>מי</th><th>פסילות</th><th>מקום</th><th>סוג</th><th>כותרת</th><th>תווים</th><th>מצב</th><th></th></tr>${docs.map((d) => `<tr data-id="${esc(d.id)}"><td>${when(d.created_at)}${d.updated_at && d.updated_at !== d.created_at ? `<div class="small">נערך ${when(d.updated_at)}</div>` : ""}</td><td>${who(d)}</td><td>${d.strikes ? `<span class="tag ${d.strikes >= 3 ? "red" : ""}">${d.strikes}</span>` : "0"}</td><td>${esc(d.inst)} · ${esc(d.faculty)} · ${d.year}${d.course ? " · " + esc(d.course) : ""}</td><td>${KIND[d.kind] || esc(d.kind)}${d.lecturer_name ? `<div class="small">${esc(d.lecturer_name)}${d.lesson_date ? " · " + esc(d.lesson_date) : ""}${d.lesson_no ? " · שיעור " + d.lesson_no : ""}</div>` : ""}</td><td><a href="/media/campus/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.topic && d.topic !== d.title ? `<div class="small">${esc(d.topic)}</div>` : ""}${d.file_type ? ` <a class="tag" href="/v1/campus/docs/${esc(d.id)}/file" target="_blank" rel="noopener">${esc(d.file_type)}</a>` : ""}${d.link_url ? ` <a class="small" href="${esc(d.link_url)}" target="_blank" rel="noopener" dir="ltr">מקור</a>` : ""}</td><td>${d.chars ?? 0}</td><td>${d.status === "visible" ? "" : `<span class="tag red">${d.status === "hold" ? "מוקפא" : esc(d.status)}</span>`}</td><td>${d.status === "removed" ? "" : `<button class="btn btn-danger btn-sm" data-del="${esc(d.id)}">הסרה</button>`}</td></tr>`).join("")}</table>`;
   },
+  async owners() {
+    const { owners, claims } = await api("owners");
+    const CL = { pending: ["ממתינה לאימות", ""], verified: ["אומתה באתר", "red"], approved: ["אושרה", ""], rejected: ["נדחתה", ""], revoked: ["בוטלה", ""] };
+    const METHOD = { meta: "תגית בדף הבית", file: "קובץ", dns: "DNS", admin: "ידנית" };
+    const open = claims.filter((c) => c.status === "pending" || c.status === "verified");
+    return `<h3 style="margin:18px 0 6px">בקשות בעלות</h3>
+      ${open.length ? '<div class="list">' + open.map((c) => `<div class="item" data-id="${esc(c.id)}"><div class="row"><b dir="ltr">${esc(c.domain)}</b><span class="tag ${CL[c.status][1]}">${CL[c.status][0]}</span>${c.method ? `<span class="tag">${METHOD[c.method] || esc(c.method)}</span>` : ""}<span class="small">${when(c.created_at)}</span></div>
+        <div class="small" style="margin-top:6px">${esc(c.display_name || "")} · <span dir="ltr">${esc(c.email || "")}</span> · <span dir="ltr">${esc(c.user_id)}</span>${c.contact ? ` · ${esc(c.contact)}` : ""}</div>
+        <div class="row" style="margin-top:10px"><input class="why" placeholder="הערה לבעל האתר (נשמרת ביומן)"><button class="btn btn-primary" data-a="approve">אישור</button>${c.status !== "verified" ? '<label class="small"><input type="checkbox" class="force" style="width:auto"> אישור בלי אימות</label>' : ""}<button class="btn btn-secondary" data-a="reject">דחייה</button></div></div>`).join("") + "</div>" : '<p class="small">אין בקשות פתוחות.</p>'}
+      <h3 style="margin:22px 0 6px">בעלים</h3>
+      <form id="of" class="item"><div class="row"><input name="domain" placeholder="example.co.il" dir="ltr" required><input name="userId" placeholder="מזהה המשתמש (u_…)" dir="ltr" required><input name="sharePct" type="number" min="0" max="90" placeholder="% מהחסות" style="max-width:120px"><input name="note" placeholder="איך אומתה הבעלות"><button class="btn btn-primary">הענקה ידנית</button></div><p class="small">להענקה בלי אימות באתר (שותף שבדקתם בדרך אחרת). המזהה מופיע בלשונית המשתמשים.</p></form>
+      <table style="margin-top:12px"><tr><th>אתר</th><th>בעלים</th><th>מאז</th><th>הודעה</th><th>סגירות</th><th>% מהחסות</th><th>קוד</th><th></th></tr>${owners.map((o) => `<tr data-id="${esc(o.domain)}"><td dir="ltr">${esc(o.domain)}</td><td>${esc(o.display_name || "")}<div class="small" dir="ltr">${esc(o.email || o.user_id)}</div></td><td>${when(o.since)}</td><td class="small">${esc(o.welcome || "")}</td><td class="small">${o.no_comments ? "תגובות " : ""}${o.no_media ? "תמונות" : ""}</td><td><input class="pct" type="number" min="0" max="90" value="${o.share_pct}" style="width:80px"> <button class="btn btn-secondary" data-a="pct">שמירה</button></td><td class="small" dir="ltr">${esc(o.ref_code || "")}</td><td><button class="btn btn-danger" data-a="revoke">ביטול בעלות</button></td></tr>`).join("")}</table>
+      ${claims.filter((c) => !(c.status === "pending" || c.status === "verified")).length ? `<h3 style="margin:22px 0 6px">בקשות שנסגרו</h3><table><tr><th>אתר</th><th>מבקש</th><th>מצב</th><th>אימות</th><th>מתי</th><th>הערה</th></tr>${claims.filter((c) => !(c.status === "pending" || c.status === "verified")).map((c) => `<tr><td dir="ltr">${esc(c.domain)}</td><td>${esc(c.display_name || "")}</td><td>${CL[c.status]?.[0] || esc(c.status)}</td><td>${METHOD[c.method] || ""}</td><td>${when(c.decided_at || c.created_at)}</td><td class="small">${esc(c.note || "")}</td></tr>`).join("")}</table>` : ""}`;
+  },
   async takedowns() {
     const { takedowns } = await api("campus/takedowns");
     if (!takedowns.length) return '<p class="small" style="margin-top:16px">אין הודעות הסרה.</p>';
@@ -204,7 +220,7 @@ const BIND = {
       e.preventDefault();
       const f = new FormData(e.target);
       const body = {
-        pageThreshold: Number(f.get("pageThreshold")), freeMedia: Number(f.get("freeMedia")), retentionDays: Number(f.get("retentionDays")), linkMedia: !!f.get("linkMedia"),
+        pageThreshold: Number(f.get("pageThreshold")), freeMedia: Number(f.get("freeMedia")), retentionDays: Number(f.get("retentionDays")), linkMedia: !!f.get("linkMedia"), ownerAutoApprove: !!f.get("ownerAutoApprove"),
         campusDocsPerMonth: Number(f.get("campusDocsPerMonth")), campusCharsPerDoc: Number(f.get("campusCharsPerDoc")), campusCharsTotal: Number(f.get("campusCharsTotal")), campusPrice: Number(f.get("campusPrice")),
         centerAd: { on: !!f.get("ad_on"), label: f.get("ad_label"), title: f.get("ad_title"), body: f.get("ad_body"), url: f.get("ad_url") || null, image: f.get("ad_image") || null,
           modes: [f.get("mode_center") ? "center" : null, f.get("mode_campus") ? "campus" : null].filter(Boolean) },
@@ -233,6 +249,17 @@ const BIND = {
       if (a === "apply") { const docIds = [...it.querySelectorAll(".td-doc:checked")].map((x) => x.value); if (!confirm(docIds.length ? `להסיר סופית ${docIds.length} מסמכים ולרשום פסילה לכותבים?` : "להסיר סופית את כל הפריטים שהבקשה הקפיאה ולרשום פסילה?")) return; await api(`campus/takedown/${id}/apply`, { method: "POST", body: docIds.length ? { docIds } : {} }); }
       if (a === "all") { if (!confirm("להסיר את כל המסמכים הגלויים במקום הזה?")) return; await api(`campus/takedown/${id}/apply`, { method: "POST", body: { all: true } }); }
       start();
+    };
+  },
+  owners(v) {
+    $("#of").onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.target); await api("owners", { method: "POST", body: { domain: f.get("domain"), userId: f.get("userId"), sharePct: f.get("sharePct") ? Number(f.get("sharePct")) : undefined, note: f.get("note") } }); render(); };
+    v.onclick = async (e) => {
+      const a = e.target.dataset.a; if (!a) return;
+      if (a === "approve" || a === "reject") { const it = e.target.closest(".item"); await api(`claims/${it.dataset.id}/${a}`, { method: "POST", body: { note: it.querySelector(".why").value, force: !!it.querySelector(".force")?.checked } }); }
+      const tr = e.target.closest("tr");
+      if (a === "pct") await api("owners/" + encodeURIComponent(tr.dataset.id), { method: "PUT", body: { sharePct: Number(tr.querySelector(".pct").value) } });
+      if (a === "revoke") { if (!confirm("לבטל את הבעלות על " + tr.dataset.id + "?")) return; await api("owners/" + encodeURIComponent(tr.dataset.id), { method: "DELETE" }); }
+      render();
     };
   },
   contacts(v) { v.onclick = async (e) => { if (e.target.dataset.a === "done") { await api("contacts/" + e.target.closest(".item").dataset.id, { method: "POST" }); start(); } }; },

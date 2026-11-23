@@ -198,6 +198,25 @@ function ItemMenu({ itemType, item }: { itemType: "post" | "chat"; item: Post | 
             </button>
           </>
         )}
+        {!mine && bundle.value?.owner?.isMe && (
+          <button
+            class="menu-item danger"
+            onClick={async () => {
+              const b = bundle.value!;
+              try {
+                await api.ownerItem(b.page.site, roomId.value, itemType, item.id);
+                posts.value = posts.value.filter((p) => p.id !== item.id);
+                media.value = media.value.filter((p) => p.id !== item.id);
+                sheet.value = null;
+                say("הוסתר בחדר של האתר שלכם. הפעולה נרשמה, ואפשר לבטל אותה בדף בעלי האתר.");
+              } catch (e: any) {
+                say(e.message, "err");
+              }
+            }}
+          >
+            <Shield /> הסתרה (בעל האתר)
+          </button>
+        )}
         {!mine && (
           <>
             <button class="menu-item danger" onClick={() => (sheet.value = { type: "report", itemType, item })}>
@@ -331,6 +350,9 @@ function MyMedia({ section = "create", pinFor }: { section?: Section; pinFor?: P
       {sec === "items" && <Items onPin={(p) => (sheet.value = { type: "mymedia", section: "store", pinFor: p })} />}
       {sec === "store" && <Store pinFor={pinFor} />}
       {sec === "safety" && <Safety />}
+      <p class="fine mm-owner">
+        יש לכם אתר? <a href={`${API_BASE || "https://inthepage.com"}/owner/${page.value ? `?domain=${encodeURIComponent(bundle.value?.page.site || "")}` : ""}`} target="_blank" rel="noopener">קבלו שליטה בחדר של האתר</a>: הודעה נעוצה, ניהול התגובות ותג לאתר.
+      </p>
     </SheetFrame>
   );
 }

@@ -24,6 +24,7 @@ export interface Settings {
   campusPrice: number; // agorot per semester
   aiCards: boolean; // the opening card (summary, questions, ask the page)
   aiCardsPerDay: number; // cards the whole service may make per day
+  ownerAutoApprove: boolean; // a site owner who verified the domain gets the rooms at once, without the operator
 }
 
 export const DEFAULTS: Settings = {
@@ -38,6 +39,7 @@ export const DEFAULTS: Settings = {
   campusPrice: 2990,
   aiCards: true,
   aiCardsPerDay: 200,
+  ownerAutoApprove: false,
 };
 
 let cache: { at: number; s: Settings } | null = null;
@@ -57,6 +59,7 @@ function clean(raw: Partial<Settings>): Settings {
     campusPrice: n(raw.campusPrice, DEFAULTS.campusPrice, 0, 1_000_000),
     aiCards: raw.aiCards === undefined ? DEFAULTS.aiCards : !!raw.aiCards,
     aiCardsPerDay: n(raw.aiCardsPerDay, DEFAULTS.aiCardsPerDay, 0, 100_000),
+    ownerAutoApprove: raw.ownerAutoApprove === undefined ? DEFAULTS.ownerAutoApprove : !!raw.ownerAutoApprove,
     centerAd: {
       on: !!ad.on,
       title: clampStr(ad.title, 120),

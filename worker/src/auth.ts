@@ -1,4 +1,5 @@
 import { DAY, Env, clampStr, fail, hmac, idSecret, isTrue, json, now, randomId, sha256 } from "./util";
+import { recordSignup } from "./owners";
 
 export interface User {
   id: string;
@@ -315,6 +316,7 @@ export async function verifyAuth(env: Env, req: Request, body: any): Promise<Res
     const id = "u_" + randomId(12);
     const name = "גולש/ת " + String(1000 + (crypto.getRandomValues(new Uint16Array(1))[0] % 9000));
     await env.DB.prepare("INSERT INTO users (id, email_hash, display_name, created_at) VALUES (?,?,?,?)").bind(id, emailHash, name, now()).run();
+    await recordSignup(env, id, body.ref).catch(() => {}); // came through a site owner's link or badge
     user = (await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first<User>())!;
   }
   if (user.banned) return fail(403, "banned", "החשבון הושעה בשל הפרת כללי הקהילה.");

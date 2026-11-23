@@ -3,7 +3,7 @@ import { API_BASE, type Ad, type CenterAd as CenterAdT } from "../api";
 import { count, hue, initials } from "../fmt";
 import { host } from "../host";
 import { Info, X } from "../icons";
-import { sheet, toast } from "../state";
+import { bundle, sheet, toast } from "../state";
 
 export function Avatar({ id, name, size = 28 }: { id: string; name: string; size?: number }) {
   return (
@@ -194,5 +194,29 @@ export function CenterAd({ ad }: { ad: CenterAdT }) {
     </a>
   ) : (
     <div class="cad">{inner}</div>
+  );
+}
+
+/** the site's owner: their pinned message, and an open note that the room is managed by them */
+export function OwnerCard() {
+  const o = bundle.value?.owner;
+  if (!o) return null;
+  return (
+    <section class="owner-card" aria-label="בעל האתר">
+      <div class="owner-head">
+        <span class="badge badge-owner">✓ בעל האתר</span>
+        <span class="owner-note">החדר בניהול בעל האתר, לפי כללי הקהילה של InThePage</span>
+      </div>
+      {o.welcome && (
+        <p class="owner-welcome" dir="auto">
+          {o.welcome}
+        </p>
+      )}
+      {o.isMe && (
+        <a class="owner-manage" href={`${API_BASE || "https://inthepage.com"}/owner/`} target="_blank" rel="noopener">
+          ניהול החדר
+        </a>
+      )}
+    </section>
   );
 }

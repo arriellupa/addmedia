@@ -76,6 +76,7 @@ function CardBody({ p, reply }: { p: Post; reply?: boolean }) {
       <div class="cb-main">
         <div class="cb-meta">
           <bdi class="cb-name">{p.name}</bdi>
+          {bundle.value?.owner?.uid === p.uid && <span class="badge badge-owner">בעל האתר</span>}
           <span class="cb-time">{ago(p.ts)}</span>
           {p.pinned && (
             <span class="badge badge-pin">

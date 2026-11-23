@@ -4,7 +4,7 @@ import { findUrl, host } from "./host";
 import { GoBar } from "./ui/GoBar";
 import { Cap, Copy, Lock, Refresh } from "./icons";
 import { bundle, load, loadError, loading, page, presence, setPage, tab } from "./state";
-import { BrandMark, CenterAd, Skeleton, Sponsored, Toast } from "./ui/Bits";
+import { BrandMark, CenterAd, OwnerCard, Skeleton, Sponsored, Toast } from "./ui/Bits";
 import { OpeningCard } from "./ui/Card";
 import { ChatView } from "./ui/Chat";
 import { CommentsView } from "./ui/Comments";
@@ -39,6 +39,7 @@ export function App() {
             <>
               <Tabs />
               <div class="stack">
+                <OwnerCard />
                 <Intro />
                 <OpeningCard />
               </div>

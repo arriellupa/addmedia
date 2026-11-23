@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>בעלי אתרים · InThePage</title>
+<meta name="description" content="קבלו שליטה בחדר של האתר שלכם ב-InThePage: הודעה נעוצה, ניהול התגובות ותג לאתר.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/site.css">
+<style>
+  .wrap { max-width: 860px; padding-top: 24px; }
+  .card { background: var(--surface); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); margin-top: 16px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row input { flex: 1; min-width: 200px; width: auto; }
+  .small { font-size: 13px; color: var(--t3); }
+  .tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--sunken); color: var(--t2); }
+  .tag.ok { background: #E6F6EE; color: #067A48; }
+  .tag.wait { background: #FFF6E3; color: #7A5300; }
+  .tag.no { background: #FDECEA; color: #B3261E; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0; }
+  .stat { background: var(--panel); border-radius: 12px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 22px; color: var(--t1); }
+  .stat span { font-size: 12px; color: var(--t3); }
+  pre.code { direction: ltr; text-align: left; white-space: pre-wrap; word-break: break-all; background: var(--panel); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 6px 0; }
+  .method { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+  .err { color: var(--danger); margin-top: 8px; }
+  .ok-msg { color: #067A48; margin-top: 8px; }
+  .btn { height: 40px; padding: 0 16px; font-size: 14px; }
+  textarea { min-height: 80px; }
+  .perks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .perk { background: var(--panel); border-radius: 12px; padding: 12px; }
+  .perk b { display: block; margin-bottom: 4px; }
+  @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } .perks { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <a class="logo" href="/"><img src="/favicon.svg" alt="">InThePage</a>
+  <nav class="nav"><a href="/publishers/">לבעלי אתרים</a><a href="/rules/">כללי הקהילה</a><a href="#" id="logout" hidden>יציאה</a></nav>
+</div></header>
+
+<main class="wrap">
+  <h1>החדר של האתר שלכם</h1>
+  <p class="lead">בכל אתר יש ב-InThePage חדר: שיחה חיה, תגובות ותמונות של מי שקורא אותו עכשיו. בעל האתר יכול לקבל עליו שליטה.</p>
+  <div class="perks">
+    <div class="perk"><b>הודעה נעוצה</b><span class="small">ההודעה שלכם בראש החדר של כל דף באתר, עם תג «בעל האתר».</span></div>
+    <div class="perk"><b>ניהול השיחה</b><span class="small">הסתרת תגובות בחדרים של האתר, וסגירת תגובות או תמונות. כל פעולה נרשמת ומוצגת בשקיפות.</span></div>
+    <div class="perk"><b>תג לאתר</b><span class="small">תג שמראה כמה קוראים מדברים עכשיו ומביא קוראים לשיחה. נרשמים דרכו נזקפים לזכותכם.</span></div>
+  </div>
+
+  <section id="signin" class="card" hidden>
+    <h2 style="margin-top:0">כניסה</h2>
+    <p class="small">אותו חשבון כמו בתוסף. אם כבר נכנסתם בתוסף במחשב הזה, הכניסה כאן אוטומטית.</p>
+    <form id="sf">
+      <div class="row"><input id="em" type="email" dir="ltr" placeholder="מייל" required autocomplete="email"><input id="pw" type="password" dir="ltr" placeholder="סיסמה" required autocomplete="current-password"></div>
+      <div class="row" id="namerow" hidden style="margin-top:8px"><input id="nm" placeholder="שם תצוגה" maxlength="24"></div>
+      <div class="row" id="coderow" hidden style="margin-top:8px"><input id="cd" inputmode="numeric" dir="ltr" placeholder="הקוד שנשלח למייל" maxlength="6"></div>
+      <div class="row" style="margin-top:10px"><button class="btn btn-primary" id="sbtn">כניסה</button><a href="#" id="toggle" class="small">אין לכם חשבון? הרשמה</a></div>
+      <div id="serr" class="err"></div>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <section class="card">
+      <h2 style="margin-top:0">בקשת בעלות על אתר</h2>
+      <form id="cf" class="row">
+        <input id="dom" dir="ltr" placeholder="example.co.il" required>
+        <input id="contact" placeholder="תפקיד וטלפון (לא חובה, רק לצוות)">
+        <button class="btn btn-primary">המשך</button>
+      </form>
+      <div id="cerr" class="err"></div>
+      <div id="claims"></div>
+    </section>
+    <div id="sites"></div>
+  </div>
+</main>
+
+<footer class="foot"><div class="foot-in">
+  <span>© 2026 InThePage</span>
+  <a href="/terms/">תנאי שימוש</a>
+  <a href="/privacy/">מדיניות פרטיות</a>
+  <a href="/rules/">כללי הקהילה</a>
+  <a href="/contact/">יצירת קשר ובקשת הסרה</a>
+</div></footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const when = (t) => (t ? new Date(t).toLocaleDateString("he-IL") : "");
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+function device() {
+  let id = store.get("am_device");
+  if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join(""); store.set("am_device", id); }
+  return id;
+}
+async function api(path, opts = {}) {
+  const h = { "Content-Type": "application/json", "X-Device": device() };
+  const t = store.get("am_token");
+  if (t) h.Authorization = "Bearer " + t;
+  const r = await fetch(path, { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { store.set("am_token", null); showSignin(); throw new Error(j.error?.message || "צריך להתחבר."); }
+  if (!r.ok) throw new Error(j.error?.message || "שגיאה");
+  return j;
+}
+
+// ---------- sign-in ----------
+let registering = false, pendingCode = false;
+function showSignin() { $("#signin").hidden = false; $("#app").hidden = true; $("#logout").hidden = true; }
+$("#toggle").onclick = (e) => { e.preventDefault(); registering = !registering; $("#namerow").hidden = !registering; $("#sbtn").textContent = registering ? "הרשמה" : "כניסה"; $("#toggle").textContent = registering ? "יש לכם חשבון? כניסה" : "אין לכם חשבון? הרשמה"; };
+$("#sf").onsubmit = async (e) => {
+  e.preventDefault(); $("#serr").textContent = "";
+  const email = $("#em").value.trim(), password = $("#pw").value, name = $("#nm").value.trim(), code = $("#cd").value.trim();
+  try {
+    let r;
+    if (pendingCode) r = await api("/v1/auth/verify", { method: "POST", body: registering ? { email, code, password, name } : { email, code } });
+    else if (registering) r = await api("/v1/auth/register", { method: "POST", body: { email, password, name } });
+    else r = await api("/v1/auth/login", { method: "POST", body: { email, password } });
+    if (r.token) { store.set("am_token", r.token); pendingCode = false; $("#coderow").hidden = true; return start(); }
+    if (r.pending || r.needCode) { pendingCode = true; $("#coderow").hidden = false; $("#cd").focus(); $("#serr").textContent = "שלחנו קוד למייל. הקלידו אותו כאן."; if (r.devCode) $("#cd").value = r.devCode; }
+  } catch (err) { $("#serr").textContent = err.message; }
+};
+$("#logout").onclick = async (e) => { e.preventDefault(); try { await api("/v1/auth/logout", { method: "POST" }); } catch {} store.set("am_token", null); showSignin(); };
+
+// ---------- claims and sites ----------
+const STATUS = { pending: ["ממתינה לאימות", "wait"], verified: ["אומתה, ממתינה לאישור הצוות", "wait"], approved: ["אושרה", "ok"], rejected: ["נדחתה", "no"], revoked: ["בוטלה", "no"] };
+function claimHtml(c) {
+  const [label, cls] = STATUS[c.status] || [c.status, ""];
+  const open = c.status === "pending" || c.status === "verified";
+  return `<div class="card" data-id="${esc(c.id)}" style="box-shadow:none;background:var(--panel)">
+    <div class="row"><b dir="ltr">${esc(c.domain)}</b><span class="tag ${cls}">${label}</span><span class="small">${when(c.created_at)}</span></div>
+    ${c.note ? `<div class="small" style="margin-top:6px">הערת הצוות: ${esc(c.note)}</div>` : ""}
+    ${c.status === "pending" ? `<p class="small" style="margin:10px 0 0">הוכיחו שהאתר שלכם באחת משלוש הדרכים, ולחצו «בדיקה»:</p>
+      <div class="method"><b>1. תגית בדף הבית</b> (הכי פשוט): הוסיפו בתוך ה-&lt;head&gt; של https://${esc(c.domain)}/
+        <pre class="code">&lt;meta name="inthepage-verify" content="${esc(c.token)}"&gt;</pre></div>
+      <div class="method"><b>2. קובץ</b>: העלו קובץ בכתובת <span dir="ltr">https://${esc(c.domain)}/.well-known/inthepage-verify.txt</span> שתוכנו:
+        <pre class="code">${esc(c.token)}</pre></div>
+      <div class="method"><b>3. רשומת DNS</b> מסוג TXT על <span dir="ltr">${esc(c.domain)}</span>:
+        <pre class="code">inthepage-verify=${esc(c.token)}</pre></div>` : ""}
+    ${open ? `<div class="row" style="margin-top:10px">${c.status === "pending" ? '<button class="btn btn-primary" data-a="verify">בדיקה</button>' : ""}<span class="small msg"></span></div>` : ""}
+  </div>`;
+}
+function siteHtml(s) {
+  const badge = `${location.origin}/v1/badge/${s.refCode}.svg`;
+  const link = `${location.origin}/r/${s.refCode}`;
+  const embed = `<a href="${link}" target="_blank" rel="noopener"><img src="${badge}" alt="InThePage: מדברים עכשיו על הדף" height="32"></a>`;
+  return `<section class="card" data-site="${esc(s.domain)}">
+    <div class="row"><h2 style="margin:0" dir="ltr">${esc(s.domain)}</h2><span class="tag ok">✓ בבעלותכם מאז ${when(s.since)}</span></div>
+    <div class="stats">
+      <div class="stat"><b>${s.stats.presence}</b><span>בחדר האתר עכשיו</span></div>
+      <div class="stat"><b>${s.stats.posts30}</b><span>תגובות באתר (30 יום)</span></div>
+      <div class="stat"><b>${s.stats.media30}</b><span>תמונות באתר (30 יום)</span></div>
+      <div class="stat"><b>${s.stats.clicks30}</b><span>כניסות מהתג (30 יום)</span></div>
+      <div class="stat"><b>${s.stats.signups30}</b><span>נרשמו דרככם (30 יום)</span></div>
+    </div>
+    <form class="sf2" style="display:grid;gap:10px">
+      <label>הודעה נעוצה בראש החדרים של האתר (עד 400 תווים, עוברת סינון)<textarea name="welcome" maxlength="400">${esc(s.welcome || "")}</textarea></label>
+      <label><input type="checkbox" name="noComments" style="width:auto" ${s.noComments ? "checked" : ""}> סגירת התגובות והצ׳אט באתר</label>
+      <label><input type="checkbox" name="noMedia" style="width:auto" ${s.noMedia ? "checked" : ""}> סגירת העלאת התמונות באתר</label>
+      <div class="row"><button class="btn btn-primary">שמירה</button><span class="small msg"></span></div>
+    </form>
+    <h3>התג לאתר שלכם</h3>
+    <p class="small">הדביקו באתר. התג מראה כמה קוראים מדברים עכשיו על האתר, ומוביל להתקנה. מי שנרשם דרכו נזקף לזכותכם${s.sharePct ? `, וחלקכם בהכנסות מהחסות בחדרים של האתר הוא ${s.sharePct}%` : ""}.</p>
+    <p><img src="${badge}" alt="" height="32"></p>
+    <pre class="code">${esc(embed)}</pre>
+    <div class="row"><button class="btn btn-secondary" data-copy="${esc(embed)}">העתקת הקוד</button><button class="btn btn-secondary" data-copy="${esc(link)}">העתקת הקישור</button></div>
+    <p class="small" style="margin-top:12px">הסתרה של תגובה: בתוסף, ב-⋯ שליד התגובה ← «הסתרה (בעל האתר)». ההסתרות נרשמות, והתוכן נשאר כפוף לכללי הקהילה ולבקשות הסרה.</p>
+  </section>`;
+}
+
+async function start() {
+  let d;
+  try { d = await api("/v1/owner"); } catch (err) { if (!store.get("am_token")) showSignin(); else $("#cerr").textContent = err.message; return; }
+  $("#signin").hidden = true; $("#app").hidden = false; $("#logout").hidden = false;
+  const q = new URLSearchParams(location.search).get("domain");
+  if (q && !$("#dom").value) $("#dom").value = q;
+  $("#claims").innerHTML = d.claims.filter((c) => c.status !== "approved").map(claimHtml).join("");
+  $("#sites").innerHTML = d.sites.map(siteHtml).join("");
+}
+
+$("#cf").onsubmit = async (e) => {
+  e.preventDefault(); $("#cerr").textContent = "";
+  try {
+    const r = await api("/v1/owner/claims", { method: "POST", body: { domain: $("#dom").value, contact: $("#contact").value } });
+    if (r.owned) $("#cerr").textContent = "לאתר הזה כבר יש בעלים רשום. אם הוא שלכם, המשיכו באימות והצוות יבדוק.";
+    await start();
+  } catch (err) { $("#cerr").textContent = err.message; }
+};
+document.addEventListener("click", async (e) => {
+  const t = e.target;
+  if (t.dataset.copy) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = "הועתק ✓"; } catch {} return; }
+  if (t.dataset.a === "verify") {
+    const card = t.closest("[data-id]"); const msg = card.querySelector(".msg"); msg.textContent = "בודק…"; t.disabled = true;
+    try {
+      const dev = new URLSearchParams(location.search).get("devBase");
+      const r = await api(`/v1/owner/claims/${card.dataset.id}/verify${dev ? "?devBase=" + encodeURIComponent(dev) : ""}`, { method: "POST" });
+      msg.textContent = r.status === "approved" ? "אומת ואושר. החדר בבעלותכם." : "אומת. הצוות יאשר בקרוב, ותקבלו את השליטה.";
+      setTimeout(start, 1200);
+    } catch (err) { msg.textContent = err.message; t.disabled = false; }
+  }
+});
+document.addEventListener("submit", async (e) => {
+  if (!e.target.classList.contains("sf2")) return;
+  e.preventDefault();
+  const sec = e.target.closest("[data-site]"); const f = new FormData(e.target); const msg = e.target.querySelector(".msg");
+  try {
+    await api(`/v1/owner/sites/${encodeURIComponent(sec.dataset.site)}`, { method: "PUT", body: { welcome: f.get("welcome"), noComments: !!f.get("noComments"), noMedia: !!f.get("noMedia") } });
+    msg.className = "small msg ok-msg"; msg.textContent = "נשמר. השינוי מגיע לחדרים תוך דקה.";
+  } catch (err) { msg.className = "small msg err"; msg.textContent = err.message; }
+});
+
+store.get("am_token") ? start() : showSignin();
+</script>
+</body>
+</html>

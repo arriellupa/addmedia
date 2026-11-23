@@ -32,6 +32,16 @@
   </ol>
   <h2>שלושה מצבי תצוגה</h2>
   <p><strong>פאנל צד</strong> — נצמד לצד החלון. <strong>מסך מפוצל</strong> — הדף בחלק העליון של המסך ו-InThePage בחלק התחתון; לחיצה על סמל הפיצול בפאנל, או Alt+Shift+S. <strong>דף מלא</strong> — InThePage בלשונית משלו, בכפתור שבראש הפאנל. בין פאנל הצד למסך המפוצל, הבחירה האחרונה נשמרת, ולחיצה על הסמל פותחת אותה שוב.</p>
+  <p id="refnote" class="small" hidden></p>
+  <script>
+  // a site owner's link (/r/<code>) lands here: keep the code on this site for 60 days, so a sign-up in the panel counts for them
+  (function () {
+    var q = new URLSearchParams(location.search), c = q.get("ref"), s = q.get("site");
+    if (!c || !/^[a-z0-9]{6,16}$/.test(c)) return;
+    try { localStorage.setItem("itp_ref", JSON.stringify({ code: c, at: Date.now() })); } catch (e) {}
+    if (s) { var n = document.getElementById("refnote"); n.textContent = "הגעתם מהאתר " + s + ". אחרי ההתקנה, החדר של האתר מחכה לכם."; n.hidden = false; }
+  })();
+  </script>
 </main>
 
 <footer class="foot"><div class="foot-in">

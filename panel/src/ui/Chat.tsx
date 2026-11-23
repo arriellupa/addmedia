@@ -132,6 +132,7 @@ function Msg({ m, grouped, anim }: { m: ChatMsg; grouped: boolean; anim: boolean
         {!grouped && !mine && (
           <div class="msg-meta">
             <bdi class="msg-name">{m.name}</bdi>
+            {bundle.value?.owner?.uid === m.uid && <span class="badge badge-owner">בעל האתר</span>}
             <time class="msg-time num">{clock(m.ts)}</time>
           </div>
         )}

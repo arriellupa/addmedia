@@ -94,6 +94,16 @@ page("get", "התקנת InThePage ל-Chrome", "התקנת התוסף של InTheP
   </ol>
   <h2>שלושה מצבי תצוגה</h2>
   <p><strong>פאנל צד</strong> — נצמד לצד החלון. <strong>מסך מפוצל</strong> — הדף בחלק העליון של המסך ו-InThePage בחלק התחתון; לחיצה על סמל הפיצול בפאנל, או Alt+Shift+S. <strong>דף מלא</strong> — InThePage בלשונית משלו, בכפתור שבראש הפאנל. בין פאנל הצד למסך המפוצל, הבחירה האחרונה נשמרת, ולחיצה על הסמל פותחת אותה שוב.</p>
+<p id="refnote" class="small" hidden></p>
+  <script>
+  // a site owner's link (/r/<code>) lands here: keep the code on this site for 60 days, so a sign-up in the panel counts for them
+  (function () {
+    var q = new URLSearchParams(location.search), c = q.get("ref"), s = q.get("site");
+    if (!c || !/^[a-z0-9]{6,16}$/.test(c)) return;
+    try { localStorage.setItem("itp_ref", JSON.stringify({ code: c, at: Date.now() })); } catch (e) {}
+    if (s) { var n = document.getElementById("refnote"); n.textContent = "הגעתם מהאתר " + s + ". אחרי ההתקנה, החדר של האתר מחכה לכם."; n.hidden = false; }
+  })();
+  </script>
 </main>
 """)
 
@@ -199,10 +209,14 @@ page("publishers", "לבעלי אתרים — InThePage", "איך בעלי את�
   <p class="lead">InThePage מציגה את האתר שלכם כמו שהוא — בלי שינוי, בלי הסתרת המודעות שלכם ובלי הזרקת קוד לדף. השיחה מתנהלת בחלון נפרד, מסומנת "לא קשור לאתר", ואתם שולטים במה שמוצג לצידכם.</p>
   <h2>כיבוי מהיר בתגית אחת</h2>
   <p>הוסיפו לראש הדף (או לכל דף שתבחרו):</p>
-  <pre>&lt;meta name="addmedia" content="nocomments,noads"&gt;</pre>
-  <p><code>nocomments</code> — ללא צ׳אט ותגובות. <code>noads</code> — ללא מודעות לצד הדף. אפשר להשתמש באחת מהן או בשתיהן.</p>
+  <pre>&lt;meta name="inthepage" content="nocomments,noads"&gt;</pre>
+  <p><code>nocomments</code> — ללא צ׳אט ותגובות. <code>noads</code> — ללא מודעות לצד הדף. אפשר להשתמש באחת מהן או בשתיהן. (גם התגית הישנה <code>name="addmedia"</code> ממשיכה לעבוד.)</p>
+  <h2>החדר של האתר שלכם</h2>
+  <p>בעל אתר יכול לקבל שליטה בחדר של האתר: הודעה נעוצה בראש החדר של כל דף, תג «בעל האתר» ליד מה שאתם כותבים, הסתרת תגובות בחדרים של האתר, סגירת תגובות או תמונות, ונתונים על השיחה. הקוראים רואים שהחדר בניהולכם, וכללי הקהילה של InThePage חלים מעל הכול.</p>
+  <p>מאמתים בעלות בתגית בדף הבית, בקובץ או ברשומת DNS, והצוות מאשר. <a class="btn btn-primary" href="/owner/">קבלת שליטה בחדר</a></p>
+  <p>בעלי חדר מקבלים גם תג לאתר שמראה כמה קוראים מדברים עכשיו, וקישור אישי: מי שנרשם דרכם נזקף לזכותם, ובהמשך הם יקבלו חלק מהכנסות החסות בחדרים של האתר שלהם.</p>
   <h2>כיבוי לכל הדומיין</h2>
-  <p>שלחו בקשה ב<a href="/contact/?kind=publisher">טופס הפנייה</a> עם שם הדומיין. בשלב הבא נאפשר אימות בעלות ברשומת DNS, וממנו: חסימה עצמית, זכות ראשונים לרכוש את מקומות הפרסום בדפים שלכם, או חלוקת הכנסות.</p>
+  <p>שלחו בקשה ב<a href="/contact/?kind=publisher">טופס הפנייה</a> עם שם הדומיין, או קבלו שליטה בחדר וסגרו בו תגובות ותמונות בעצמכם.</p>
   <h2>מה אנחנו מתחייבים</h2>
   <ul>
     <li>לא מציגים מודעות שמשתמשות במותג שלכם, ולא מאפשרים למתחרים לפרסם בדפי המותג שלכם.</li>
